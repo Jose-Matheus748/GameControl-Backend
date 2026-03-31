@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/playlists")
+@RequestMapping("/api/usuario-playlists")
 public class UsuarioPlayListController {
     private final UsuarioPlayListService usuarioPlayListService;
 
@@ -66,9 +66,9 @@ public class UsuarioPlayListController {
     }
 
     @PostMapping("/{playlistId}/jogos/{jogoId}")
-    public ResponseEntity<UsuarioPlayList> adicionarJogo(@PathVariable Long playlistId, @PathVariable Long gameId) {
+    public ResponseEntity<UsuarioPlayList> adicionarJogo(@PathVariable Long playlistId, @PathVariable Long jogoId) {
         try {
-            UsuarioPlayList usuarioPlayListAtualizada = usuarioPlayListService.adicionarJogo(playlistId, gameId);
+            UsuarioPlayList usuarioPlayListAtualizada = usuarioPlayListService.adicionarJogo(playlistId, jogoId);
             return ResponseEntity.ok(usuarioPlayListAtualizada);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
@@ -76,9 +76,9 @@ public class UsuarioPlayListController {
     }
 
     @DeleteMapping("/{playlistId}/jogos/{jogoId}")
-    public ResponseEntity<UsuarioPlayList> removerJogo(@PathVariable Long playlistId, @PathVariable Long gameId) {
+    public ResponseEntity<UsuarioPlayList> removerJogo(@PathVariable Long playlistId, @PathVariable Long jogoId) {
         try {
-            UsuarioPlayList usuarioPlayListAtualizada = usuarioPlayListService.removerJogo(playlistId, gameId);
+            UsuarioPlayList usuarioPlayListAtualizada = usuarioPlayListService.removerJogo(playlistId, jogoId);
             return ResponseEntity.ok(usuarioPlayListAtualizada);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();

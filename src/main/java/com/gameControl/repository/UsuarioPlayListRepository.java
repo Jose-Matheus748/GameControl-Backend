@@ -11,5 +11,5 @@ import java.util.List;
 public interface UsuarioPlayListRepository extends JpaRepository<UsuarioPlayList, Long> {
 
     // Buscar todas as playlists de um usuário específico
-    List<UsuarioPlayList> findByUserId(Long usuarioId);
+    List<UsuarioPlayList> findByUsuarioId(Long usuarioId);
 }

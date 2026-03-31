@@ -38,15 +38,15 @@ public class JogoService {
 
     public JogoDTO cadastrarJogo(JogoDTO jogoDTO) {
         Jogo jogo = new Jogo();
-        jogo.setTitulo(jogoDTO.getTitle());
-        jogo.setDescricao(jogoDTO.getDescription());
-        jogo.setDesenvolvedor(jogoDTO.getDeveloper());
-        jogo.setEditora(jogoDTO.getPublisher());
-        jogo.setGeneros(jogoDTO.getGenres());
-        jogo.setDataLancamento(jogoDTO.getReleaseDate());
+        jogo.setTitulo(jogoDTO.getTitulo());
+        jogo.setDescricao(jogoDTO.getDescricao());
+        jogo.setDesenvolvedor(jogoDTO.getDesenvolvedor());
+        jogo.setEditora(jogoDTO.getEditora());
+        jogo.setGeneros(jogoDTO.getGeneros());
+        jogo.setDataLancamento(jogoDTO.getDataLancamento());
 
-        if (jogoDTO.getCoverImage() != null && !jogoDTO.getCoverImage().isEmpty()) {
-            String url = salvarArquivo(jogoDTO.getCoverImage());
+        if (jogoDTO.getImagemCapa() != null && !jogoDTO.getImagemCapa().isEmpty()) {
+            String url = salvarArquivo(jogoDTO.getImagemCapa());
             jogo.setUrlCapa(url);
         }
 
@@ -100,13 +100,13 @@ public class JogoService {
     private JogoDTO toDTO(Jogo jogo) {
         JogoDTO dto = new JogoDTO();
         dto.setId(jogo.getId());
-        dto.setTitle(jogo.getTitulo());
-        dto.setDeveloper(jogo.getDesenvolvedor());
-        dto.setPublisher(jogo.getEditora());
-        dto.setGenres(jogo.getGeneros());
-        dto.setReleaseDate(jogo.getDataLancamento());
-        dto.setCoverImageUrl(jogo.getUrlCapa());
-        dto.setDescription(jogo.getDescricao());
+        dto.setTitulo(jogo.getTitulo());
+        dto.setDesenvolvedor(jogo.getDesenvolvedor());
+        dto.setEditora(jogo.getEditora());
+        dto.setGeneros(jogo.getGeneros());
+        dto.setDataLancamento(jogo.getDataLancamento());
+        dto.setUrlCapa(jogo.getUrlCapa());
+        dto.setDescricao(jogo.getDescricao());
 
         return dto;
     }

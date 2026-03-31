@@ -24,7 +24,7 @@ public class UsuarioPlayListService {
     }
 
     public List<UsuarioPlayList> listarPlaylistsPorUsuario(Long usuarioId) {
-        return usuarioPlayListRepository.findByUserId(usuarioId);
+        return usuarioPlayListRepository.findByUsuarioId(usuarioId);
     }
 
     public Optional<UsuarioPlayList> buscarPlaylistPorID(Long id) {
