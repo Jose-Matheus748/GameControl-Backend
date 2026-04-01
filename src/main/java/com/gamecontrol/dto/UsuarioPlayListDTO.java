@@ -3,6 +3,7 @@ package com.gamecontrol.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,5 +16,6 @@ public class UsuarioPlayListDTO {
     private String descricao;
     private String usuarioId;
     private List<String> jogosIds = new ArrayList<>();
+    private Instant syncedAt;
 
 }
