@@ -1,12 +1,15 @@
 package com.gamecontrol.controller;
 
+import com.gamecontrol.dto.AuthResponse;
 import com.gamecontrol.dto.CreateUserRequest;
+import com.gamecontrol.dto.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,5 +36,15 @@ public class UserController {
     public ResponseEntity<UserDTO> cadastrarUsuario(@Valid @RequestBody CreateUserRequest corpo) {
         UserDTO criado = userService.cadastrarUsuario(corpo);
         return ResponseEntity.status(HttpStatus.CREATED).body(criado);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest corpo) {
+        return ResponseEntity.ok(userService.login(corpo));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<UserDTO> buscarPorId(@PathVariable String id) {
+        return ResponseEntity.ok(userService.buscarUsuarioPorId(id));
     }
 }
