@@ -21,17 +21,11 @@ public class UsuarioPlaylistController {
         this.usuarioPlaylistService = usuarioPlaylistService;
     }
 
-    /**
-     * Cria uma nova playlist.
-     * O usuarioId é extraído do parâmetro da URL (?usuarioId=...)
-     * e repassado para a Service preencher o objeto automaticamente.
-     */
     @PostMapping
     public ResponseEntity<?> criarPlaylist(
             @RequestParam String usuarioId,
             @Valid @RequestBody CreatePlaylistRequest request) {
         try {
-            // A Service recebe o ID do parâmetro e os dados do corpo
             UsuarioPlayListDTO nova = usuarioPlaylistService.criarPlaylist(usuarioId, request);
             return ResponseEntity.status(HttpStatus.CREATED).body(nova);
         } catch (RuntimeException e) {

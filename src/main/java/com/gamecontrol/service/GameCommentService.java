@@ -7,11 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 @Service
 public class GameCommentService {
-
+    
     private final Firestore firestore;
     private final String commentsCollection;
     private final String usersCollection;
@@ -36,13 +35,13 @@ public class GameCommentService {
             DocumentSnapshot doc = ref.get().get();
 
             DocumentSnapshot userDoc = firestore.collection(usersCollection)
-                    .document(req.getUserId())
-                    .get()
-                    .get();
+                .document(req.getUserId())
+                .get()
+                .get();
 
             return GameCommentFirestoreMapper.paraDto(
-                    doc,
-                    userDoc.getString("username")
+                doc,
+                userDoc.getString("username")
             );
 
         } catch (Exception e) {
@@ -53,9 +52,9 @@ public class GameCommentService {
     public List<GameCommentDTO> getCommentsByGame(String gameId) {
         try {
             QuerySnapshot resultado = firestore.collection(commentsCollection)
-                    .whereEqualTo("gameId", gameId)
-                    .get()
-                    .get();
+                .whereEqualTo("gameId", gameId)
+                .get()
+                .get();
 
             return montarLista(resultado);
 
@@ -67,9 +66,9 @@ public class GameCommentService {
     public List<GameCommentDTO> getCommentsByUser(String userId) {
         try {
             QuerySnapshot resultado = firestore.collection(commentsCollection)
-                    .whereEqualTo("userId", userId)
-                    .get()
-                    .get();
+                .whereEqualTo("userId", userId)
+                .get()
+                .get();
 
             return montarLista(resultado);
 
@@ -80,8 +79,8 @@ public class GameCommentService {
 
     public void deleteComment(String commentId) {
         firestore.collection(commentsCollection)
-                .document(commentId)
-                .delete();
+            .document(commentId)
+            .delete();
     }
 
     private List<GameCommentDTO> montarLista(QuerySnapshot resultado) throws Exception {
@@ -91,13 +90,13 @@ public class GameCommentService {
             String userId = doc.getString("userId");
 
             DocumentSnapshot userDoc = firestore.collection(usersCollection)
-                    .document(userId)
-                    .get()
-                    .get();
+                .document(userId)
+                .get()
+                .get();
 
             lista.add(GameCommentFirestoreMapper.paraDto(
-                    doc,
-                    userDoc.getString("username")
+                doc,
+                userDoc.getString("username")
             ));
         }
 
