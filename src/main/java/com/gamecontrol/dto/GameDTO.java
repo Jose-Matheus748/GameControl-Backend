@@ -27,4 +27,5 @@ public class GameDTO {
     private String title;
     private Double totalRating;
     private Long totalRatingCount;
+    private Integer themeId;
 }

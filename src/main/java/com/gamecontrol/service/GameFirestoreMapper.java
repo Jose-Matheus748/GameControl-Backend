@@ -34,6 +34,7 @@ final class GameFirestoreMapper {
         dto.setReleaseDate(snap.getString("releaseDate"));
         dto.setSlug(snap.getString("slug"));
         dto.setTitle(snap.getString("title"));
+        dto.setThemeId(toInteger(snap.get("themeId")));
         dto.setTotalRating(toDouble(snap.get("totalRating")));
         dto.setTotalRatingCount(toLong(snap.get("totalRatingCount")));
         Timestamp ts = snap.getTimestamp("syncedAt");
@@ -58,6 +59,7 @@ final class GameFirestoreMapper {
         putIfNotNull(m, "ratingCount", req.getRatingCount());
         putIfNotNull(m, "releaseDate", req.getReleaseDate());
         putIfNotNull(m, "slug", req.getSlug());
+        putIfNotNull(m, "themeId", req.getThemeId());
         m.put("title", req.getTitle());
         putIfNotNull(m, "totalRating", req.getTotalRating());
         putIfNotNull(m, "totalRatingCount", req.getTotalRatingCount());
@@ -86,6 +88,7 @@ final class GameFirestoreMapper {
         putIfNotNull(m, "ratingCount", patch.getRatingCount());
         putIfNotNull(m, "releaseDate", patch.getReleaseDate());
         putIfNotNull(m, "slug", patch.getSlug());
+        putIfNotNull(m, "themeId", patch.getThemeId());
         putIfNotNull(m, "title", patch.getTitle());
         putIfNotNull(m, "totalRating", patch.getTotalRating());
         putIfNotNull(m, "totalRatingCount", patch.getTotalRatingCount());
@@ -100,6 +103,17 @@ final class GameFirestoreMapper {
         if (value != null) {
             m.put(key, value);
         }
+    }
+
+    private static Integer toInteger(Object v) {
+
+        if (v == null) return null;
+
+        if (v instanceof Integer i) return i;
+
+        if (v instanceof Long l) return l.intValue();
+
+        return ((Number) v).intValue();
     }
 
     private static Long toLong(Object v) {

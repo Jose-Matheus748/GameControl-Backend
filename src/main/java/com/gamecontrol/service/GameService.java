@@ -1,5 +1,4 @@
 package com.gamecontrol.service;
-
 import com.gamecontrol.dto.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.google.cloud.firestore.DocumentReference;
@@ -11,6 +10,7 @@ import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.SetOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,10 +34,30 @@ public class GameService {
         return executar(() -> {
             QuerySnapshot resultado = firestore.collection(nomeColecaoJogos).get().get();
             List<GameDTO> jogos = new ArrayList<>();
+
+            // Lista de termos recorrentes em slugs/títulos de jogos adultos
+            List<String> termosProibidos = List.of(
+                    "succubus", "prison", "delude", "hentai", "adult", "sexy", "erotic",
+                    "nsfw", "naked", "sex", "porn", "femboy", "sleepover", "ecchi",
+                    "harem", "uncensored", "lewd", "fetish", "milf", "corruption",
+                    "mistress", "lust", "desire", "breeding", "affair", "sin", "oppai", "cumming", "Opala"
+            );
+
             for (QueryDocumentSnapshot documento : resultado.getDocuments()) {
                 GameDTO jogo = GameFirestoreMapper.fromSnapshot(documento);
+
                 if (jogo != null) {
-                    jogos.add(jogo);
+                    // Normalização para minúsculas para garantir a comparação
+                    String slugLower = jogo.getSlug() != null ? jogo.getSlug().toLowerCase() : "";
+                    String titleLower = jogo.getTitle() != null ? jogo.getTitle().toLowerCase() : "";
+
+                    // Verifica se o slug ou título contém alguma das palavras proibidas
+                    boolean contemConteudoRestrito = termosProibidos.stream()
+                            .anyMatch(termo -> slugLower.contains(termo) || titleLower.contains(termo));
+
+                    if (!contemConteudoRestrito) {
+                        jogos.add(jogo);
+                    }
                 }
             }
             return jogos;
