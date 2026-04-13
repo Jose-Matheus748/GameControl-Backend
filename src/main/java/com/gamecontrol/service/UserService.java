@@ -201,4 +201,38 @@ public class UserService {
             );
         }
     }
+
+    public UserDTO atualizarUsuario(String id, UserDTO dadosAtualizados) {
+        try {
+            DocumentReference referencia = firestore
+                    .collection(nomeColecaoUsuarios)
+                    .document(id);
+
+            DocumentSnapshot documento = referencia.get().get();
+
+            if (!documento.exists()) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuário não encontrado."
+                );
+            }
+
+            referencia.update(
+                    "username", dadosAtualizados.getUsername(),
+                    "bio", dadosAtualizados.getBio(),
+                    "country", dadosAtualizados.getCountry()
+            ).get();
+
+            DocumentSnapshot atualizado = referencia.get().get();
+
+            return UserFirestoreMapper.paraDto(atualizado);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Erro ao atualizar usuário.", e);
+        }
+    }
 }
