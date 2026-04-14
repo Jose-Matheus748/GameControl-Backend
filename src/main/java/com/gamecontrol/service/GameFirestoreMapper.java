@@ -24,9 +24,8 @@ final class GameFirestoreMapper {
         dto.setCoverImageUrl(snap.getString("coverImageUrl"));
         dto.setDescription(snap.getString("description"));
         dto.setDeveloper(snap.getString("developer"));
-        Object genreIds = snap.get("genreIds");
-
-        if (genreIds instanceof List<?> list) {
+        Object genres = snap.get("genreIds");
+        if (genres instanceof List<?> list) {
             dto.setGenreIds((List<String>) list);
         }
         dto.setIgdbId(toLong(snap.get("igdbId")));
@@ -54,7 +53,7 @@ final class GameFirestoreMapper {
         putIfNotNull(m, "coverImageUrl", req.getCoverImageUrl());
         putIfNotNull(m, "description", req.getDescription());
         putIfNotNull(m, "developer", req.getDeveloper());
-        putIfNotNull(m, "genres", req.getGenres());
+        putIfNotNull(m, "genreIds", req.getGenreIds());
         putIfNotNull(m, "igdbId", req.getIgdbId());
         putIfNotNull(m, "igdbPopularityValue", req.getIgdbPopularityValue());
         putIfNotNull(m, "igdbUrl", req.getIgdbUrl());
@@ -83,7 +82,7 @@ final class GameFirestoreMapper {
         putIfNotNull(m, "coverImageUrl", patch.getCoverImageUrl());
         putIfNotNull(m, "description", patch.getDescription());
         putIfNotNull(m, "developer", patch.getDeveloper());
-        putIfNotNull(m, "genres", patch.getGenres());
+        putIfNotNull(m, "genreIds", patch.getGenres());
         putIfNotNull(m, "igdbId", patch.getIgdbId());
         putIfNotNull(m, "igdbPopularityValue", patch.getIgdbPopularityValue());
         putIfNotNull(m, "igdbUrl", patch.getIgdbUrl());

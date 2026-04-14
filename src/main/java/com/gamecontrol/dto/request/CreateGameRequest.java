@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 public class CreateGameRequest {
@@ -14,7 +15,7 @@ public class CreateGameRequest {
     private String coverImageUrl;
     private String description;
     private String developer;
-    private String genres;
+    private List<String> genreIds;
     private Long igdbId;
     private Double igdbPopularityValue;
     private String igdbUrl;
