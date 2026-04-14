@@ -1,6 +1,6 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.CreatePlaylistRequest;
+import com.gamecontrol.dto.request.CreatePlaylistRequest;
 import com.gamecontrol.dto.UsuarioPlayListDTO;
 import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Value;

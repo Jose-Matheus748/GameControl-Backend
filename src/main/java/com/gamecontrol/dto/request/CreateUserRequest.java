@@ -1,4 +1,4 @@
-package com.gamecontrol.dto;
+package com.gamecontrol.dto.request;
 
 import com.gamecontrol.enums.Role;
 import jakarta.validation.constraints.Email;

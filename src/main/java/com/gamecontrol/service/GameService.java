@@ -1,5 +1,5 @@
 package com.gamecontrol.service;
-import com.gamecontrol.dto.CreateGameRequest;
+import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;

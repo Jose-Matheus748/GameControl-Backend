@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -13,7 +14,8 @@ public class GameDTO {
     private String coverImageUrl;
     private String description;
     private String developer;
-    private String genres;
+    private List<String> genreIds; // banco
+    private List<GenreDTO> genres; // resposta
     private Long igdbId;
     private Double igdbPopularityValue;
     private String igdbUrl;

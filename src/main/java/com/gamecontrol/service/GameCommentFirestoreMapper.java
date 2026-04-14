@@ -1,6 +1,6 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.CreateCommentRequest;
+import com.gamecontrol.dto.request.CreateCommentRequest;
 import com.gamecontrol.dto.GameCommentDTO;
 import com.google.cloud.firestore.DocumentSnapshot;
 

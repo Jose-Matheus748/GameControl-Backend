@@ -1,6 +1,6 @@
 package com.gamecontrol.controller;
 
-import com.gamecontrol.dto.CreateCommentRequest;
+import com.gamecontrol.dto.request.CreateCommentRequest;
 import com.gamecontrol.dto.GameCommentDTO;
 import com.gamecontrol.service.GameCommentService;
 import org.springframework.web.bind.annotation.*;

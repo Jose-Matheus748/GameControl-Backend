@@ -1,12 +1,13 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.CreateGameRequest;
+import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 final class GameFirestoreMapper {
@@ -23,7 +24,11 @@ final class GameFirestoreMapper {
         dto.setCoverImageUrl(snap.getString("coverImageUrl"));
         dto.setDescription(snap.getString("description"));
         dto.setDeveloper(snap.getString("developer"));
-        dto.setGenres(snap.getString("genres"));
+        Object genreIds = snap.get("genreIds");
+
+        if (genreIds instanceof List<?> list) {
+            dto.setGenreIds((List<String>) list);
+        }
         dto.setIgdbId(toLong(snap.get("igdbId")));
         dto.setIgdbPopularityValue(toDouble(snap.get("igdbPopularityValue")));
         dto.setIgdbUrl(snap.getString("igdbUrl"));

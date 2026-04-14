@@ -1,6 +1,6 @@
 package com.gamecontrol.controller;
 
-import com.gamecontrol.dto.FollowRequest;
+import com.gamecontrol.dto.request.FollowRequest;
 import com.gamecontrol.service.FollowService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
