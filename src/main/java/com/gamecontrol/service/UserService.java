@@ -11,6 +11,7 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -27,9 +28,15 @@ public class UserService {
 
     private final Firestore firestore;
     private final String nomeColecaoUsuarios;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(Firestore firestore, @Value("${firebase.collection.users}") String nomeColecaoUsuarios) {
+    public UserService(
+            Firestore firestore,
+            PasswordEncoder passwordEncoder,
+            @Value("${firebase.collection.users}") String nomeColecaoUsuarios
+    ) {
         this.firestore = firestore;
+        this.passwordEncoder = passwordEncoder;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
     }
 
@@ -57,37 +64,49 @@ public class UserService {
     }
 
     /**
-     * Cria usuário no Firestore. A senha é gravada como enviada — em produção use hash (ex.: BCrypt).
+     * Cria usuário no Firestore com senha criptografada via BCrypt.
      */
     public UserDTO cadastrarUsuario(CreateUserRequest requisicao) {
         try {
-            requisicao.setEmail(requisicao.getEmail().trim().toLowerCase(Locale.ROOT));
-            if (buscarDocumentoPorEmail(requisicao.getEmail()).isPresent()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado.");
-            }
-            Map<String, Object> dados = UserFirestoreMapper.paraDocumento(requisicao);
-            DocumentReference referencia = firestore.collection(nomeColecaoUsuarios).document();
-            referencia.set(dados).get();
-            DocumentSnapshot salvo = referencia.get().get();
-            return UserFirestoreMapper.paraDto(salvo);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Operação no Firestore interrompida.", e);
-        } catch (ExecutionException e) {
-            Throwable causa = e.getCause();
-            if (causa instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new IllegalStateException(
-                    causa != null ? causa.getMessage() : "Falha ao acessar o Firestore.",
-                    e
+            requisicao.setEmail(
+                    requisicao.getEmail()
+                            .trim()
+                            .toLowerCase(Locale.ROOT)
             );
+
+            if (buscarDocumentoPorEmail(requisicao.getEmail()).isPresent()) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "E-mail já cadastrado."
+                );
+            }
+
+            String senhaHash =
+                    passwordEncoder.encode(requisicao.getPassword());
+
+            Map<String, Object> dados =
+                    UserFirestoreMapper.paraDocumento(
+                            requisicao,
+                            senhaHash
+                    );
+
+            DocumentReference referencia =
+                    firestore.collection(nomeColecaoUsuarios).document();
+
+            referencia.set(dados).get();
+
+            return UserFirestoreMapper.paraDto(
+                    referencia.get().get()
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
     /**
-     * Login: compara senha em texto plano com o valor no Firestore (sem hash).
-     * O token é apenas um identificador opaco (UUID), sem JWT.
+     * Login: compara senha em texto plano enviada pelo usuário
+     * com a senha criptografada armazenada no Firestore usando BCrypt.
      */
     public AuthResponse login(LoginRequest requisicao) {
         try {
@@ -97,8 +116,15 @@ public class UserService {
             }
             QueryDocumentSnapshot documento = documentoOpt.get();
             String senhaArmazenada = lerSenhaComoTexto(documento);
-            if (senhaArmazenada == null || !senhaArmazenada.equals(requisicao.getPassword())) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas.");
+            if (senhaArmazenada == null ||
+                    !passwordEncoder.matches(
+                            requisicao.getPassword(),
+                            senhaArmazenada
+                    )) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Credenciais inválidas."
+                );
             }
             UserDTO usuario = UserFirestoreMapper.paraDto(documento);
             String token = UUID.randomUUID().toString();

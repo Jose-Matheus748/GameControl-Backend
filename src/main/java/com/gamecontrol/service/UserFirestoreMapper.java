@@ -18,12 +18,15 @@ final class UserFirestoreMapper {
     private UserFirestoreMapper() {
     }
 
-    static Map<String, Object> paraDocumento(CreateUserRequest requisicao) {
+    static Map<String, Object> paraDocumento(
+            CreateUserRequest requisicao,
+            String senhaHash
+    ) {
         Map<String, Object> dados = new LinkedHashMap<>();
         String email = requisicao.getEmail().trim().toLowerCase(Locale.ROOT);
         dados.put("email", email);
         dados.put("emailLower", email);
-        dados.put("password", requisicao.getPassword());
+        dados.put("password", senhaHash);
         dados.put("username", requisicao.getUsername().trim());
 
         putIfPresent(dados, "bio", requisicao.getBio());
