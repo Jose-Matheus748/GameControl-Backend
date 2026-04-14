@@ -1,9 +1,10 @@
-package com.gamecontrol.dto;
+package com.gamecontrol.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 public class CreateGameRequest {
@@ -14,7 +15,7 @@ public class CreateGameRequest {
     private String coverImageUrl;
     private String description;
     private String developer;
-    private String genres;
+    private List<String> genreIds;
     private Long igdbId;
     private Double igdbPopularityValue;
     private String igdbUrl;
@@ -31,4 +32,5 @@ public class CreateGameRequest {
     private Instant syncedAt;
     private Double totalRating;
     private Long totalRatingCount;
+    private List<String> genres;
 }

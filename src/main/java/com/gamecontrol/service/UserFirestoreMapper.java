@@ -1,6 +1,6 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.CreateUserRequest;
+import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.gamecontrol.enums.Role;
 import com.google.cloud.Timestamp;

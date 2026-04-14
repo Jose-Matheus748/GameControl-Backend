@@ -1,5 +1,5 @@
 package com.gamecontrol.service;
-import com.gamecontrol.dto.CreateGameRequest;
+import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -12,10 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
@@ -24,10 +21,12 @@ public class GameService {
 
     private final Firestore firestore;
     private final String nomeColecaoJogos;
+    private final GenreService genreService;
 
-    public GameService(Firestore firestore, @Value("${firebase.collection.games}") String nomeColecaoJogos) {
+    public GameService(Firestore firestore, @Value("${firebase.collection.games}") String nomeColecaoJogos, GenreService genreService) {
         this.firestore = firestore;
         this.nomeColecaoJogos = nomeColecaoJogos;
+        this.genreService = genreService;
     }
 
     public List<GameDTO> listarJogos() {
@@ -92,17 +91,31 @@ public class GameService {
     public GameDTO cadastrarJogo(CreateGameRequest requisicao) {
         return executar(() -> {
             Map<String, Object> dados = GameFirestoreMapper.toMap(requisicao);
+
+            // cria referência e gera ID automaticamente
+            DocumentReference referencia =
+                    firestore.collection(nomeColecaoJogos).document();
+
+            String gameId = referencia.getId();
+
+            // cria / atualiza gêneros com o ID do jogo
+            List<String> genreIds =
+                    genreService.garantirGeneros(
+                            requisicao.getGenres(),
+                            gameId
+                    );
+
+            dados.put("genreIds", genreIds);
+            dados.remove("genres");
+
             if (!dados.containsKey("syncedAt")) {
                 dados.put("syncedAt", FieldValue.serverTimestamp());
             }
-            DocumentReference referencia;
-            if (requisicao.getDocumentId() != null && !requisicao.getDocumentId().isBlank()) {
-                referencia = firestore.collection(nomeColecaoJogos).document(requisicao.getDocumentId().trim());
-            } else {
-                referencia = firestore.collection(nomeColecaoJogos).document();
-            }
+
             referencia.set(dados).get();
+
             DocumentSnapshot salvo = referencia.get().get();
+
             return GameFirestoreMapper.fromSnapshot(salvo);
         });
     }
@@ -159,5 +172,36 @@ public class GameService {
         } catch (Exception e) {
             throw new IllegalStateException("Erro inesperado no Firestore.", e);
         }
+    }
+
+    public void sincronizarGenerosDosJogosExistentes() {
+        executar(() -> {
+            QuerySnapshot snapshot = firestore.collection(nomeColecaoJogos)
+                    .get()
+                    .get();
+
+            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+
+                String genresString = doc.getString("genres");
+
+                if (genresString == null || genresString.isBlank()) {
+                    continue;
+                }
+
+                List<String> nomesGeneros = Arrays.stream(genresString.split(","))
+                        .map(String::trim)
+                        .toList();
+
+                List<String> genreIds =
+                        genreService.garantirGeneros(
+                                nomesGeneros,
+                                doc.getId()
+                        );
+
+                doc.getReference().update("genreIds", genreIds).get();
+            }
+
+            return null;
+        });
     }
 }

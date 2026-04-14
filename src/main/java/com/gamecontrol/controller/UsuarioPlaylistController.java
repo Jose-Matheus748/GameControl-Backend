@@ -1,6 +1,6 @@
 package com.gamecontrol.controller;
 
-import com.gamecontrol.dto.CreatePlaylistRequest;
+import com.gamecontrol.dto.request.CreatePlaylistRequest;
 import com.gamecontrol.dto.UsuarioPlayListDTO;
 import com.gamecontrol.service.UsuarioPlaylistService;
 import jakarta.validation.Valid;

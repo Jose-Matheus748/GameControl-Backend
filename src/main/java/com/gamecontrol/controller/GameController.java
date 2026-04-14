@@ -1,6 +1,6 @@
 package com.gamecontrol.controller;
 
-import com.gamecontrol.dto.CreateGameRequest;
+import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.gamecontrol.service.GameService;
 import jakarta.validation.Valid;

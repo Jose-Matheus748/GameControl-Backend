@@ -1,8 +1,8 @@
 package com.gamecontrol.service;
 
 import com.gamecontrol.dto.AuthResponse;
-import com.gamecontrol.dto.CreateUserRequest;
-import com.gamecontrol.dto.LoginRequest;
+import com.gamecontrol.dto.request.CreateUserRequest;
+import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;

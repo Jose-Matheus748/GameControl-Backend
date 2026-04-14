@@ -11,9 +11,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.util.StringUtils;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -23,27 +23,41 @@ public class FirebaseConfig {
 
     @Bean
     public Firestore firestore(
-            @Value("${firebase.credentials.path:}") String credentialsPath,
             @Value("${firebase.project-id:}") String projectId
     ) throws IOException {
+
         if (FirebaseApp.getApps().isEmpty()) {
-            FirebaseOptions.Builder builder = FirebaseOptions.builder();
-            if (StringUtils.hasText(credentialsPath)) {
-                Path keyPath = Paths.get(credentialsPath.trim());
-                if (!keyPath.isAbsolute()) {
-                    keyPath = Paths.get(System.getProperty("user.dir", ".")).resolve(keyPath);
-                }
-                try (InputStream in = new FileInputStream(keyPath.toFile())) {
-                    builder.setCredentials(GoogleCredentials.fromStream(in));
-                }
+
+            InputStream in = null;
+
+            // procura na pasta config da raiz do projeto
+            Path externalPath = Paths.get("config", "firebaseKey.json");
+
+            if (Files.exists(externalPath)) {
+                in = Files.newInputStream(externalPath);
             } else {
-                builder.setCredentials(GoogleCredentials.getApplicationDefault());
+                // fallback para resources
+                in = getClass()
+                        .getClassLoader()
+                        .getResourceAsStream("config/firebaseKey.json");
             }
+
+            if (in == null) {
+                throw new IOException(
+                        "Arquivo da chave do Firebase não encontrado nem em /config nem em resources."
+                );
+            }
+
+            FirebaseOptions.Builder builder = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(in));
+
             if (StringUtils.hasText(projectId)) {
                 builder.setProjectId(projectId.trim());
             }
+
             FirebaseApp.initializeApp(builder.build());
         }
+
         return FirestoreClient.getFirestore();
     }
 }

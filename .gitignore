@@ -9,3 +9,4 @@ target/
 *-firebase-adminsdk-*.json
 serviceAccount*.json
 config/firebase-adminsdk.json
+config/firebaseKey.json
