@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.gameControl.model.Usuario;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.gameControl.dto.UsuarioDTO;
@@ -12,9 +13,11 @@ import com.gameControl.repository.UsuarioRepository;
 @Service
 public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UsuarioService(UsuarioRepository usuarioRepository) {
+    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public List<UsuarioDTO> listarUsuarios() {
@@ -30,6 +33,8 @@ public class UsuarioService {
     }
 
     public UsuarioDTO criarUsuario(Usuario usuario) {
+        String senhaCriptografada = passwordEncoder.encode(usuario.getSenha());
+        usuario.setSenha(senhaCriptografada);
         Usuario usuarioSalvo = usuarioRepository.save(usuario);
         return toDTO(usuarioSalvo);
     }
@@ -38,7 +43,12 @@ public class UsuarioService {
         return usuarioRepository.findById(id)
         .map( user -> {
             user.setNomeUsuario(updatedUsuario.getNomeUsuario());
-            user.setSenha(updatedUsuario.getSenha());
+
+
+            if (updatedUsuario.getSenha() != null && !updatedUsuario.getSenha().isEmpty()) {
+                user.setSenha(passwordEncoder.encode(updatedUsuario.getSenha()));
+            }
+
             user.setEmail(updatedUsuario.getEmail());
             user.setBio(updatedUsuario.getBio());
             user.setDataNascimento(updatedUsuario.getDataNascimento());
@@ -48,7 +58,7 @@ public class UsuarioService {
 
             Usuario usuarioSaved = usuarioRepository.save(user);
             return toDTO(usuarioSaved);
-        }).orElseThrow(() -> new RuntimeException("Usuário não enconrado."));
+        }).orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
     }
 
     public boolean deleteUsuario(Long id) {
@@ -56,15 +66,13 @@ public class UsuarioService {
             usuarioRepository.deleteById(id);
             return true;
         }
-        
         return false;
     }
 
-    // TODO: Colocar cryptografia.
     public Optional<UsuarioDTO> login(String email, String password) {
         return usuarioRepository.findByEmail(email)
-            .filter(user -> user.getSenha().equals(password))
-            .map(UsuarioDTO::new);
+                .filter(user -> passwordEncoder.matches(password, user.getSenha())) // Compara o recheio
+                .map(this::toDTO);
     }
 
     private UsuarioDTO toDTO(Usuario usuario) {
@@ -77,7 +85,6 @@ public class UsuarioService {
         dto.setDataNascimento(usuario.getDataNascimento());
         dto.setPais(usuario.getPais());
         dto.setRole(usuario.getRole());
-
         return dto;
     }
 }
