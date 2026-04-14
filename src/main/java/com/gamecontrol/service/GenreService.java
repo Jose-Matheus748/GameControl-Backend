@@ -1,15 +1,10 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.request.CreateGenreRequest;
-import com.gamecontrol.dto.GenreDTO;
 import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.*;
 
 @Service
 public class GenreService {
@@ -23,41 +18,35 @@ public class GenreService {
         this.collection = collection;
     }
 
-    public GenreDTO createGenre(CreateGenreRequest req) {
-        try {
-            Map<String, Object> data = GenreFirestoreMapper.toMap(req);
+    public List<String> garantirGeneros(List<String> generos) throws Exception {
+        List<String> ids = new ArrayList<>();
 
-            DocumentReference ref = firestore.collection(collection).document();
-            ref.set(data).get();
+        if (generos == null) return ids;
 
-            DocumentSnapshot doc = ref.get().get();
-            return GenreFirestoreMapper.fromSnapshot(doc);
+        for (String nome : generos) {
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted", e);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Firestore error", e);
-        }
-    }
+            String slug = nome.toLowerCase().trim().replace(" ", "-");
 
-    public List<GenreDTO> listGenres() {
-        try {
-            QuerySnapshot snapshot = firestore.collection(collection).get().get();
+            QuerySnapshot query = firestore.collection(collection)
+                    .whereEqualTo("slug", slug)
+                    .limit(1)
+                    .get()
+                    .get();
 
-            List<GenreDTO> list = new ArrayList<>();
+            if (!query.isEmpty()) {
+                ids.add(query.getDocuments().get(0).getId());
+            } else {
+                Map<String, Object> novo = new HashMap<>();
+                novo.put("name", nome);
+                novo.put("slug", slug);
 
-            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
-                list.add(GenreFirestoreMapper.fromSnapshot(doc));
+                DocumentReference doc = firestore.collection(collection).document();
+                doc.set(novo).get();
+
+                ids.add(doc.getId());
             }
-
-            return list;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted", e);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Firestore error", e);
         }
+
+        return ids;
     }
 }

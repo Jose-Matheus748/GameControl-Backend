@@ -24,10 +24,12 @@ public class GameService {
 
     private final Firestore firestore;
     private final String nomeColecaoJogos;
+    private final GenreService genreService;
 
-    public GameService(Firestore firestore, @Value("${firebase.collection.games}") String nomeColecaoJogos) {
+    public GameService(Firestore firestore, @Value("${firebase.collection.games}") String nomeColecaoJogos, GenreService genreService) {
         this.firestore = firestore;
         this.nomeColecaoJogos = nomeColecaoJogos;
+        this.genreService = genreService;
     }
 
     public List<GameDTO> listarJogos() {
@@ -92,6 +94,9 @@ public class GameService {
     public GameDTO cadastrarJogo(CreateGameRequest requisicao) {
         return executar(() -> {
             Map<String, Object> dados = GameFirestoreMapper.toMap(requisicao);
+            List<String> genreIds = genreService.garantirGeneros(requisicao.getGenres());
+            dados.put("genreIds", genreIds);
+            dados.remove("genres");
             if (!dados.containsKey("syncedAt")) {
                 dados.put("syncedAt", FieldValue.serverTimestamp());
             }

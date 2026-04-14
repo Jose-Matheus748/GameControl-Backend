@@ -32,4 +32,5 @@ public class CreateGameRequest {
     private Instant syncedAt;
     private Double totalRating;
     private Long totalRatingCount;
+    private List<String> genres;
 }
