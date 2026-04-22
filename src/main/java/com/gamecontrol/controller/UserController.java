@@ -8,6 +8,7 @@ import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,5 +57,21 @@ public class UserController {
     ) {
         UserDTO atualizado = userService.atualizarUsuario(id, usuarioAtualizado);
         return ResponseEntity.ok(atualizado);
+    }
+
+    @PostMapping("/{userId}/follow/{targetUserId}")
+    public ResponseEntity<Void> follow(
+            @PathVariable String userId,
+            @PathVariable String targetUserId) {
+        userService.followUser(userId, targetUserId);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @DeleteMapping("/{userId}/follow/{targetUserId}")
+    public ResponseEntity<Void> unfollow(
+            @PathVariable String userId,
+            @PathVariable String targetUserId) {
+        userService.unfollowUser(userId, targetUserId);
+        return ResponseEntity.noContent().build();
     }
 }

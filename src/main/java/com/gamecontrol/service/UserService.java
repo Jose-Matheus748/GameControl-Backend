@@ -6,9 +6,11 @@ import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.WriteBatch;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -259,6 +261,77 @@ public class UserService {
 
         } catch (ExecutionException e) {
             throw new IllegalStateException("Erro ao atualizar usuário.", e);
+        }
+    }
+
+    /**
+     * {@code followerId} passa a seguir {@code followedId}: atualiza arrays {@code following} / {@code followers} nos docs de usuário.
+     */
+    public void followUser(String followerId, String followedId) {
+        if (followerId == null || followedId == null
+                || followerId.isBlank() || followedId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ids inválidos.");
+        }
+        String f = followerId.trim();
+        String d = followedId.trim();
+        if (f.equals(d)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível seguir a si mesmo.");
+        }
+        try {
+            DocumentReference refFollower = firestore.collection(nomeColecaoUsuarios).document(f);
+            DocumentReference refFollowed = firestore.collection(nomeColecaoUsuarios).document(d);
+            DocumentSnapshot snapFollower = refFollower.get().get();
+            DocumentSnapshot snapFollowed = refFollowed.get().get();
+            if (!snapFollower.exists() || !snapFollowed.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
+            }
+            WriteBatch batch = firestore.batch();
+            batch.update(refFollower, "following", FieldValue.arrayUnion(d));
+            batch.update(refFollowed, "followers", FieldValue.arrayUnion(f));
+            batch.commit().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+        } catch (ExecutionException e) {
+            Throwable causa = e.getCause();
+            if (causa instanceof ResponseStatusException rse) {
+                throw rse;
+            }
+            throw new IllegalStateException("Erro ao seguir usuário.", e);
+        }
+    }
+
+    public void unfollowUser(String followerId, String followedId) {
+        if (followerId == null || followedId == null
+                || followerId.isBlank() || followedId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ids inválidos.");
+        }
+        String f = followerId.trim();
+        String d = followedId.trim();
+        if (f.equals(d)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ids inválidos.");
+        }
+        try {
+            DocumentReference refFollower = firestore.collection(nomeColecaoUsuarios).document(f);
+            DocumentReference refFollowed = firestore.collection(nomeColecaoUsuarios).document(d);
+            DocumentSnapshot snapFollower = refFollower.get().get();
+            DocumentSnapshot snapFollowed = refFollowed.get().get();
+            if (!snapFollower.exists() || !snapFollowed.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
+            }
+            WriteBatch batch = firestore.batch();
+            batch.update(refFollower, "following", FieldValue.arrayRemove(d));
+            batch.update(refFollowed, "followers", FieldValue.arrayRemove(f));
+            batch.commit().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+        } catch (ExecutionException e) {
+            Throwable causa = e.getCause();
+            if (causa instanceof ResponseStatusException rse) {
+                throw rse;
+            }
+            throw new IllegalStateException("Erro ao deixar de seguir.", e);
         }
     }
 }

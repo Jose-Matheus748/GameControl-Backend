@@ -9,8 +9,10 @@ import com.google.cloud.firestore.DocumentSnapshot;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Locale;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 final class UserFirestoreMapper {
@@ -40,6 +42,9 @@ final class UserFirestoreMapper {
         Role papel = requisicao.getRole() != null ? requisicao.getRole() : Role.USER;
         dados.put("role", papel.name());
 
+        dados.put("followers", new ArrayList<String>());
+        dados.put("following", new ArrayList<String>());
+
         return dados;
     }
 
@@ -54,6 +59,8 @@ final class UserFirestoreMapper {
         dto.setCountry(documento.getString("country"));
         dto.setBirthDate(lerDataNascimento(documento));
         dto.setRole(lerPapel(documento));
+        dto.setFollowers(lerListaIds(documento, "followers"));
+        dto.setFollowing(lerListaIds(documento, "following"));
 
         return dto;
     }
@@ -89,5 +96,19 @@ final class UserFirestoreMapper {
         if (valor != null && !valor.isBlank()) {
             mapa.put(chave, valor.trim());
         }
+    }
+
+    private static List<String> lerListaIds(DocumentSnapshot documento, String campo) {
+        Object valor = documento.get(campo);
+        if (!(valor instanceof List<?> lista)) {
+            return new ArrayList<>();
+        }
+        List<String> ids = new ArrayList<>();
+        for (Object item : lista) {
+            if (item != null) {
+                ids.add(String.valueOf(item));
+            }
+        }
+        return ids;
     }
 }
