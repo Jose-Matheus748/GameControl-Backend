@@ -63,6 +63,24 @@ public class GameService {
         });
     }
 
+    public List<GameDTO> listarDozeJogos() {
+        return executar(() -> {
+            QuerySnapshot resultado = firestore.collection(nomeColecaoJogos)
+                    .orderBy("title")
+                    .limit(12)
+                    .get()
+                    .get();
+            List<GameDTO> jogos = new ArrayList<>();
+            for (QueryDocumentSnapshot documento : resultado.getDocuments()) {
+                GameDTO jogo = GameFirestoreMapper.fromSnapshot(documento);
+                if (jogo != null) {
+                    jogos.add(jogo);
+                }
+            }
+            return jogos;
+        });
+    }
+
     public Optional<GameDTO> buscarJogoPorId(String id) {
         return executar(() -> {
             DocumentSnapshot documento = firestore.collection(nomeColecaoJogos).document(id).get().get();
