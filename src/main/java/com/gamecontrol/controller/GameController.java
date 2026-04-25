@@ -32,6 +32,11 @@ public class GameController {
         return ResponseEntity.ok(gameService.listarJogos());
     }
 
+    @GetMapping("/recentes")
+    public ResponseEntity<List<GameDTO>>listarDozeJogos(){
+        return ResponseEntity.ok(gameService.listarDozeJogos());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<GameDTO> buscarJogoPorId(@PathVariable String id) {
         return gameService.buscarJogoPorId(id)
