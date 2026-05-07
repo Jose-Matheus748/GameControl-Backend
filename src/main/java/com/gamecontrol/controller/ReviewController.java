@@ -19,7 +19,9 @@ public class ReviewController {
     private ReviewService reviewService;
 
     @PostMapping
-    public ResponseEntity<String> createReview(@Valid @RequestBody CreateReviewRequest request) {
+    public ResponseEntity<ReviewDTO> createReview(
+            @Valid @RequestBody CreateReviewRequest request
+    ) {
         return ResponseEntity.ok(reviewService.saveReview(request));
     }
 
