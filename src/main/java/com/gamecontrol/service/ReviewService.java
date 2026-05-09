@@ -23,7 +23,7 @@ public class ReviewService {
 
     private static final String COLLECTION_NAME = "reviews";
 
-    public String saveReview(CreateReviewRequest request) {
+    public ReviewDTO saveReview(CreateReviewRequest request) {
         try {
             Firestore db = FirestoreClient.getFirestore();
 
@@ -38,15 +38,19 @@ public class ReviewService {
 
                 Map<String, Object> updates = ReviewFirestoreMapper.patchMap(request);
 
-                ApiFuture<WriteResult> futureUpdate =
-                        existingDoc.getReference().update(updates);
+                existingDoc.getReference().update(updates).get();
 
-                return "Review atualizada em: " + futureUpdate.get().getUpdateTime();
+                DocumentSnapshot updatedDoc =
+                        existingDoc.getReference().get().get();
+
+                return ReviewFirestoreMapper.fromSnapshot(updatedDoc);
             }
 
-            DocumentReference docRef = db.collection(COLLECTION_NAME).document();
+            DocumentReference docRef =
+                    db.collection(COLLECTION_NAME).document();
 
-            Map<String, Object> data = ReviewFirestoreMapper.toMap(request);
+            Map<String, Object> data =
+                    ReviewFirestoreMapper.toMap(request);
 
             var user = userService.buscarUsuarioPorId(request.getUserId());
 
@@ -54,12 +58,16 @@ public class ReviewService {
                 data.put("userName", user.getUsername());
             }
 
-            data.put("createdAt",
-                    LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            data.put(
+                    "createdAt",
+                    LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            );
 
-            ApiFuture<WriteResult> future = docRef.set(data);
+            docRef.set(data).get();
 
-            return "Review criada em: " + future.get().getUpdateTime();
+            DocumentSnapshot createdDoc = docRef.get().get();
+
+            return ReviewFirestoreMapper.fromSnapshot(createdDoc);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
