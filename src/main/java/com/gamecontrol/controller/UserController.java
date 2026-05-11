@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -56,6 +57,16 @@ public class UserController {
             @RequestBody UserDTO usuarioAtualizado
     ) {
         UserDTO atualizado = userService.atualizarUsuario(id, usuarioAtualizado);
+        return ResponseEntity.ok(atualizado);
+    }
+
+    @PutMapping("/{id}/profile-picture")
+    public ResponseEntity<UserDTO> updateProfilePicture(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body
+    ) {
+        String base64Image = body.get("profilePictureUrl");
+        UserDTO atualizado = userService.atualizarFotoPerfil(id, base64Image);
         return ResponseEntity.ok(atualizado);
     }
 

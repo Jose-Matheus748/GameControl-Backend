@@ -264,6 +264,35 @@ public class UserService {
         }
     }
 
+    public UserDTO atualizarFotoPerfil(String id, String profilePictureUrl) {
+        try {
+            DocumentReference referencia = firestore
+                    .collection(nomeColecaoUsuarios)
+                    .document(id);
+
+            DocumentSnapshot documento = referencia.get().get();
+
+            if (!documento.exists()) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuário não encontrado."
+                );
+            }
+
+            referencia.update("profilePictureUrl", profilePictureUrl).get();
+
+            DocumentSnapshot atualizado = referencia.get().get();
+            return UserFirestoreMapper.paraDto(atualizado);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Erro ao atualizar foto de perfil.", e);
+        }
+    }
+
     /**
      * {@code followerId} passa a seguir {@code followedId}: atualiza arrays {@code following} / {@code followers} nos docs de usuário.
      */

@@ -10,3 +10,5 @@ target/
 serviceAccount*.json
 config/firebase-adminsdk.json
 config/firebaseKey.json
+
+ssh-key-*.key
