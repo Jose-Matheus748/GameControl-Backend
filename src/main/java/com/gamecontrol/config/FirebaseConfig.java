@@ -30,13 +30,11 @@ public class FirebaseConfig {
 
             InputStream in = null;
 
-            // procura na pasta config da raiz do projeto
             Path externalPath = Paths.get("config", "firebaseKey.json");
 
             if (Files.exists(externalPath)) {
                 in = Files.newInputStream(externalPath);
             } else {
-                // fallback para resources
                 in = getClass()
                         .getClassLoader()
                         .getResourceAsStream("config/firebaseKey.json");
