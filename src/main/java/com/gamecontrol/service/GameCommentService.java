@@ -63,6 +63,20 @@ public class GameCommentService {
         }
     }
 
+    public List<GameCommentDTO> getCommentsByPost(String postId) {
+        try {
+            QuerySnapshot resultado = firestore.collection(commentsCollection)
+                    .whereEqualTo("postId", postId)
+                    .get()
+                    .get();
+
+            return montarLista(resultado);
+
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public List<GameCommentDTO> getCommentsByUser(String userId) {
         try {
             QuerySnapshot resultado = firestore.collection(commentsCollection)
@@ -102,4 +116,5 @@ public class GameCommentService {
 
         return lista;
     }
+
 }

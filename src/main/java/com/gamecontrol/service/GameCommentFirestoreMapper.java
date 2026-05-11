@@ -16,6 +16,7 @@ final class GameCommentFirestoreMapper {
         Map<String, Object> dados = new HashMap<>();
         dados.put("userId", req.getUserId());
         dados.put("gameId", req.getGameId());
+        dados.put("postId", req.getPostId());
         dados.put("content", req.getContent());
         dados.put("createdAt", LocalDateTime.now().toString());
         return dados;
@@ -26,6 +27,7 @@ final class GameCommentFirestoreMapper {
         dto.setId(doc.getId());
         dto.setUserId(doc.getString("userId"));
         dto.setGameId(doc.getString("gameId"));
+        dto.setPostId(doc.getString("postId"));
         dto.setContent(doc.getString("content"));
         dto.setCreatedAt(doc.getString("createdAt"));
         dto.setUsername(username);

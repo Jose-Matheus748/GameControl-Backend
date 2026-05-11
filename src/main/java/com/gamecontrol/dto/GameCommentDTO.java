@@ -13,4 +13,5 @@ public class GameCommentDTO {
     private String gameId;
     private String content;
     private String createdAt;
+    private String postId;
 }

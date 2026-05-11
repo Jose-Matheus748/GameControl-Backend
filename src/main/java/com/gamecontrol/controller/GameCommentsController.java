@@ -27,6 +27,11 @@ public class GameCommentsController {
         return service.getCommentsByGame(gameId);
     }
 
+    @GetMapping("/post/{postId}")
+    public List<GameCommentDTO> byPost(@PathVariable String postId) {
+        return service.getCommentsByPost(postId);
+    }
+
     @GetMapping("/user/{userId}")
     public List<GameCommentDTO> byUser(@PathVariable String userId) {
         return service.getCommentsByUser(userId);

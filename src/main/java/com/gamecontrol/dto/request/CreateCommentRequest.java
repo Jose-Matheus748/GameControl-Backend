@@ -14,4 +14,7 @@ public class CreateCommentRequest {
 
     @NotBlank
     private String content;
+
+    @NotBlank
+    private String postId;
 }
