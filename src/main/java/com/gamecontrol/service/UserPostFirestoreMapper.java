@@ -21,7 +21,7 @@ final class UserPostFirestoreMapper {
         return dados;
     }
 
-    static UserPostDTO paraDto(DocumentSnapshot doc, String username) {
+    static UserPostDTO paraDto(DocumentSnapshot doc, String username, String profilePictureUrl) {
         UserPostDTO dto = new UserPostDTO();
         dto.setId(doc.getId());
         dto.setUserId(doc.getString("userId"));
@@ -30,6 +30,7 @@ final class UserPostFirestoreMapper {
         dto.setCommentIds((List<String>) doc.get("commentIds"));
         dto.setCreatedAt(doc.getString("createdAt"));
         dto.setUsername(username);
+        dto.setProfilePictureUrl(profilePictureUrl);
         return dto;
     }
 }
