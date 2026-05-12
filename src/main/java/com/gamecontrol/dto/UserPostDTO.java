@@ -13,7 +13,8 @@ public class UserPostDTO {
     private String userId;
     private String username;
     private String text;
-    private Integer likes;
+    private List<String> likedUserIds;
+    private Integer likesCount;
     private List<String> commentIds;
     private String createdAt;
     private String profilePictureUrl;
