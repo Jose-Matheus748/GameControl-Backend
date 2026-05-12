@@ -1,5 +1,6 @@
 package com.gamecontrol.controller;
 
+import com.gamecontrol.dto.GameReviewsPageDTO;
 import com.gamecontrol.dto.ReviewDTO;
 import com.gamecontrol.dto.request.CreateReviewRequest;
 import com.gamecontrol.service.ReviewService;
@@ -48,12 +49,28 @@ public class ReviewController {
     }
 
     @GetMapping("/game/{gameId}/average")
-    public ResponseEntity<Double> getAverageRating(@PathVariable String gameId) throws Exception {
-        return ResponseEntity.ok(reviewService.getAverageRating(gameId));
+    public ResponseEntity<Double> getAverageRating(@PathVariable String gameId){
+        try {
+            Double average = reviewService.getAverageRating(gameId);
+            return ResponseEntity.ok(average);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteReview(@PathVariable String id) {
         return ResponseEntity.ok(reviewService.deleteReview(id));
+    }
+
+    @GetMapping("/{gameId}/reviews-page")
+    public ResponseEntity<GameReviewsPageDTO> getReviewPage(@PathVariable String gameId) {
+        try {
+            GameReviewsPageDTO pageData = reviewService.getReviewPage(gameId);
+            return ResponseEntity.ok(pageData);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }   

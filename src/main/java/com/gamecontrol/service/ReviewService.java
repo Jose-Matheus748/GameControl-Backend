@@ -1,5 +1,6 @@
 package com.gamecontrol.service;
 
+import com.gamecontrol.dto.GameReviewsPageDTO;
 import com.gamecontrol.dto.ReviewDTO;
 import com.gamecontrol.dto.request.CreateReviewRequest;
 import com.google.api.core.ApiFuture;
@@ -7,7 +8,9 @@ import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
+import com.google.cloud.firestore.AggregateField;
+import com.google.cloud.firestore.AggregateQuery;
+import com.google.cloud.firestore.AggregateQuerySnapshot;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -20,6 +23,8 @@ public class ReviewService {
 
     @Autowired
     private UserService userService;
+    @Autowired
+    private GameService gameService;
 
     private static final String COLLECTION_NAME = "reviews";
 
@@ -154,15 +159,18 @@ public class ReviewService {
     }
 
     public Double getAverageRating(String gameId) throws Exception {
-        List<ReviewDTO> reviews = getReviewsByGame(gameId);
+        Firestore db = FirestoreClient.getFirestore();
 
-        if (reviews.isEmpty()) return 0.0;
+        Query query = db.collection(COLLECTION_NAME).whereEqualTo("gameId", gameId);
 
-        double sum = reviews.stream()
-                .mapToDouble(r -> r.getRating())
-                .sum();
+        AggregateQuery aggregateQuery = query.aggregate(AggregateField.average("rating"));
 
-        return sum / reviews.size();
+        ApiFuture<AggregateQuerySnapshot> future = aggregateQuery.get();
+        AggregateQuerySnapshot snapshot = future.get();
+
+        Double average = snapshot.get(AggregateField.average("rating"));
+
+        return (average != null) ? Math.round(average * 10.0) / 10.0 : 0.0;
     }
 
     public String deleteReview(String id) {
@@ -170,4 +178,24 @@ public class ReviewService {
         dbFirestore.collection(COLLECTION_NAME).document(id).delete();
         return "Avaliação " + id + " removida com sucesso.";
     }
+
+    public GameReviewsPageDTO getReviewPage(String gameId) throws Exception {
+
+        var game = gameService.buscarJogoPorId(gameId);
+
+        List<ReviewDTO> reviews = getReviewsByGame(gameId);
+
+        double sum = reviews.stream().mapToDouble(ReviewDTO::getRating).sum();
+        double avg = reviews.isEmpty() ? 0.0 : sum / reviews.size();
+        double roundedAvg = Math.round(avg * 10.0) / 10.0;
+
+        String display = (roundedAvg % 1 == 0)
+                ? String.format("%.0f", roundedAvg)
+                : String.valueOf(roundedAvg);
+
+
+        return new GameReviewsPageDTO(game, reviews, roundedAvg, display);
+    }
+
+
 }
