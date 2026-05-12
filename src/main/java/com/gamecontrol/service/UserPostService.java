@@ -41,7 +41,8 @@ public class UserPostService {
 
             return UserPostFirestoreMapper.paraDto(
                     doc,
-                    userDoc.getString("username")
+                    userDoc.getString("username"),
+                    userDoc.getString("profilePictureUrl")
             );
 
         } catch (Exception e) {
@@ -95,7 +96,8 @@ public class UserPostService {
 
             lista.add(UserPostFirestoreMapper.paraDto(
                     doc,
-                    userDoc.getString("username")
+                    userDoc.getString("username"),
+                    userDoc.getString("profilePictureUrl")
             ));
         }
 
