@@ -21,7 +21,7 @@ final class GameCommentFirestoreMapper {
         return dados;
     }
 
-    static GameCommentDTO paraDto(DocumentSnapshot doc, String username) {
+    static GameCommentDTO paraDto(DocumentSnapshot doc, String username, String profilePictureUrl) {
         GameCommentDTO dto = new GameCommentDTO();
         dto.setId(doc.getId());
         dto.setUserId(doc.getString("userId"));
@@ -29,6 +29,7 @@ final class GameCommentFirestoreMapper {
         dto.setContent(doc.getString("content"));
         dto.setCreatedAt(doc.getString("createdAt"));
         dto.setUsername(username);
+        dto.setProfilePictureUrl(profilePictureUrl); // ← adicionar
         return dto;
     }
 }

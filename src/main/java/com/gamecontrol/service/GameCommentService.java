@@ -41,7 +41,8 @@ public class GameCommentService {
 
             return GameCommentFirestoreMapper.paraDto(
                 doc,
-                userDoc.getString("username")
+                userDoc.getString("username"),
+                    userDoc.getString("profilePictureUrl")
             );
 
         } catch (Exception e) {
@@ -96,7 +97,8 @@ public class GameCommentService {
 
             lista.add(GameCommentFirestoreMapper.paraDto(
                 doc,
-                userDoc.getString("username")
+                userDoc.getString("username"),
+                    userDoc.getString("profilePictureUrl")
             ));
         }
 
