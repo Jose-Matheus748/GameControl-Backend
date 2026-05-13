@@ -36,4 +36,12 @@ public class UserPostController {
     public void delete(@PathVariable String id) {
         service.deletePost(id);
     }
+
+    @PostMapping("/{postId}/like/{userId}")
+    public void toggleLike(
+            @PathVariable String postId,
+            @PathVariable String userId
+    ) {
+        service.toggleLike(postId, userId);
+    }
 }

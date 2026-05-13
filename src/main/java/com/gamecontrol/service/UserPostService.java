@@ -103,4 +103,33 @@ public class UserPostService {
 
         return lista;
     }
+
+    public void toggleLike(String postId, String userId) {
+        try {
+
+            DocumentReference ref =
+                    firestore.collection(postsCollection)
+                            .document(postId);
+
+            DocumentSnapshot doc = ref.get().get();
+
+            List<String> likes =
+                    (List<String>) doc.get("likedUserIds");
+
+            if (likes == null) {
+                likes = new ArrayList<>();
+            }
+
+            if (likes.contains(userId)) {
+                likes.remove(userId);
+            } else {
+                likes.add(userId);
+            }
+
+            ref.update("likedUserIds", likes).get();
+
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
 }

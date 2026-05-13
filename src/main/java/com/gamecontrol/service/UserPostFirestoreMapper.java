@@ -11,11 +11,12 @@ final class UserPostFirestoreMapper {
 
     private UserPostFirestoreMapper() {}
 
+
     static Map<String, Object> paraDocumento(CreateUserPostRequest req) {
         Map<String, Object> dados = new HashMap<>();
         dados.put("userId", req.getUserId());
         dados.put("text", req.getText());
-        dados.put("likes", 0);
+        dados.put("likedUserIds", new ArrayList<>());
         dados.put("commentIds", new ArrayList<>());
         dados.put("createdAt", LocalDateTime.now().toString());
         return dados;
@@ -26,11 +27,21 @@ final class UserPostFirestoreMapper {
         dto.setId(doc.getId());
         dto.setUserId(doc.getString("userId"));
         dto.setText(doc.getString("text"));
-        dto.setLikes(doc.getLong("likes") != null ? doc.getLong("likes").intValue() : 0);
-        dto.setCommentIds((List<String>) doc.get("commentIds"));
+        List<String> likedUsers =
+                (List<String>) doc.get("likedUserIds");
+
+        if (likedUsers == null) {
+            likedUsers = new ArrayList<>();
+        }
+        dto.setLikedUserIds(likedUsers);
+        dto.setCommentIds(
+                (List<String>) doc.get("commentIds")
+        );
         dto.setCreatedAt(doc.getString("createdAt"));
         dto.setUsername(username);
         dto.setProfilePictureUrl(profilePictureUrl);
+        dto.setLikesCount(likedUsers.size());
+
         return dto;
     }
 }
