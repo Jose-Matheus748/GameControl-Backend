@@ -4,8 +4,10 @@ import com.gamecontrol.dto.GameReviewsPageDTO;
 import com.gamecontrol.dto.ReviewDTO;
 import com.gamecontrol.dto.request.CreateReviewRequest;
 import com.gamecontrol.service.ReviewService;
+import com.google.api.Http;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -20,10 +22,18 @@ public class ReviewController {
     private ReviewService reviewService;
 
     @PostMapping
-    public ResponseEntity<ReviewDTO> createReview(
-            @Valid @RequestBody CreateReviewRequest request
-    ) {
-        return ResponseEntity.ok(reviewService.saveReview(request));
+    public ResponseEntity<?> saveReview(
+            @RequestBody CreateReviewRequest request,
+            @RequestParam String userId) {
+        try {
+            ReviewDTO savedReview = reviewService.saveReview(request, userId);
+            return ResponseEntity.ok(savedReview);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao salvar avaliação.");
+        }
     }
 
     @GetMapping("/{id}")
@@ -59,14 +69,27 @@ public class ReviewController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteReview(@PathVariable String id) {
-        return ResponseEntity.ok(reviewService.deleteReview(id));
+    public ResponseEntity<String> deleteReview(
+            @PathVariable String id,
+            @RequestParam String userId) {
+        try {
+            String response = reviewService.deleteReview(id, userId);
+            return ResponseEntity.ok(response);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Erro ao processar a exclusão.");
+        }
     }
 
     @GetMapping("/{gameId}/reviews-page")
-    public ResponseEntity<GameReviewsPageDTO> getReviewPage(@PathVariable String gameId) {
+    public ResponseEntity<GameReviewsPageDTO> getReviewPage(
+            @PathVariable String gameId,
+            @RequestParam(required = false) String userId) {
         try {
-            GameReviewsPageDTO pageData = reviewService.getReviewPage(gameId);
+            GameReviewsPageDTO pageData = reviewService.getReviewPage(gameId, userId);
             return ResponseEntity.ok(pageData);
         } catch (Exception e) {
             e.printStackTrace();
