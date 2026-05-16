@@ -28,7 +28,12 @@ public class ReviewService {
 
     private static final String COLLECTION_NAME = "reviews";
 
-    public ReviewDTO saveReview(CreateReviewRequest request) {
+    public ReviewDTO saveReview(CreateReviewRequest request, String authenticatedUserId) {
+
+        if (authenticatedUserId == null || !authenticatedUserId.equals(request.getUserId())) {
+            throw new SecurityException("Operação não autorizada: Você não pode alterar dados de outro usuário.");
+        }
+
         try {
             Firestore db = FirestoreClient.getFirestore();
 
@@ -173,28 +178,57 @@ public class ReviewService {
         return (average != null) ? Math.round(average * 10.0) / 10.0 : 0.0;
     }
 
-    public String deleteReview(String id) {
-        Firestore dbFirestore = FirestoreClient.getFirestore();
-        dbFirestore.collection(COLLECTION_NAME).document(id).delete();
-        return "Avaliação " + id + " removida com sucesso.";
+    public String deleteReview(String id, String authenticatedUserId) {
+        try {
+            Firestore dbFirestore = FirestoreClient.getFirestore();
+
+            DocumentSnapshot snapshot = dbFirestore.collection(COLLECTION_NAME).document(id).get().get();
+
+            if (!snapshot.exists()) {
+                throw new IllegalArgumentException("Avaliação não encontrada.");
+            }
+
+            String reviewOwnerId = snapshot.getString("userId");
+
+            if (authenticatedUserId == null || !authenticatedUserId.equals(reviewOwnerId)) {
+                throw new SecurityException("Operação não autorizada: Você não pode excluir a avaliação de outro usuário.");
+            }
+
+            dbFirestore.collection(COLLECTION_NAME).document(id).delete().get();
+            return "Avaliação " + id + " removida com sucesso.";
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Operação interrompida ao deletar review", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Erro ao executar operação no Firestore", e);
+        }
     }
 
-    public GameReviewsPageDTO getReviewPage(String gameId) throws Exception {
-
+    public GameReviewsPageDTO getReviewPage(String gameId, String userId) throws Exception {
         var game = gameService.buscarJogoPorId(gameId);
-
         List<ReviewDTO> reviews = getReviewsByGame(gameId);
 
         double sum = reviews.stream().mapToDouble(ReviewDTO::getRating).sum();
         double avg = reviews.isEmpty() ? 0.0 : sum / reviews.size();
         double roundedAvg = Math.round(avg * 10.0) / 10.0;
+        String display = (roundedAvg % 1 == 0) ? String.format("%.0f", roundedAvg) : String.valueOf(roundedAvg);
 
-        String display = (roundedAvg % 1 == 0)
-                ? String.format("%.0f", roundedAvg)
-                : String.valueOf(roundedAvg);
+        ReviewDTO userReview = null;
+        if (userId != null && !userId.isBlank()) {
+            userReview = reviews.stream()
+                    .filter(r -> userId.equals(r.getUserId()))
+                    .findFirst()
+                    .orElse(null);
 
-
-        return new GameReviewsPageDTO(game, reviews, roundedAvg, display);
+            if (userReview != null) {
+                final String targetId = userReview.getId();
+                reviews = reviews.stream()
+                        .filter(r -> !targetId.equals(r.getId()))
+                        .toList();
+            }
+        }
+        return new GameReviewsPageDTO(game, reviews, userReview, roundedAvg, display);
     }
 
 
