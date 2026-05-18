@@ -3,7 +3,7 @@ package com.gamecontrol.dto;
 import java.util.List;
 
 public record GameReviewsPageDTO(
-        Object GameDTO,
+        GameDTO game,
         List<ReviewDTO> reviews,
         ReviewDTO userReview,
         Double average,

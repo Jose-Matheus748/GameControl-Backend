@@ -18,6 +18,7 @@ final class ReviewFirestoreMapper {
         dto.setId(snap.getId());
         dto.setUserId(snap.getString("userId"));
         dto.setUserName(snap.getString("userName"));
+        dto.setProfilePictureUrl(snap.getString("profilePictureUrl"));
         dto.setGameId(snap.getString("gameId"));
         dto.setRating(snap.getDouble("rating"));
         dto.setDescription(snap.getString("description"));
