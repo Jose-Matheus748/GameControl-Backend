@@ -10,10 +10,10 @@ public class ReviewDTO {
     private String id;
     private String userId;
     private String userName;
+    private String profilePictureUrl;
     private String gameId;
     private Double rating;
     private String description;
     private String createdAt;
 
 }
-

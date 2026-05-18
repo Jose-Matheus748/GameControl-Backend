@@ -1,16 +1,13 @@
 package com.gamecontrol.service;
 
+import com.gamecontrol.dto.GameDTO;
 import com.gamecontrol.dto.GameReviewsPageDTO;
 import com.gamecontrol.dto.ReviewDTO;
 import com.gamecontrol.dto.request.CreateReviewRequest;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
-import com.google.firebase.cloud.FirestoreClient;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import com.google.cloud.firestore.AggregateField;
-import com.google.cloud.firestore.AggregateQuery;
-import com.google.cloud.firestore.AggregateQuerySnapshot;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,12 +18,22 @@ import java.util.concurrent.ExecutionException;
 @Service
 public class ReviewService {
 
-    @Autowired
-    private UserService userService;
-    @Autowired
-    private GameService gameService;
+    private final Firestore firestore;
+    private final UserService userService;
+    private final GameService gameService;
+    private final String COLLECTION_NAME;
 
-    private static final String COLLECTION_NAME = "reviews";
+    public ReviewService(
+            Firestore firestore,
+            UserService userService,
+            GameService gameService,
+            @Value("${firebase.collection.reviews}") String reviewsCollection
+    ) {
+        this.firestore = firestore;
+        this.userService = userService;
+        this.gameService = gameService;
+        this.COLLECTION_NAME = reviewsCollection;
+    }
 
     public ReviewDTO saveReview(CreateReviewRequest request, String authenticatedUserId) {
 
@@ -35,9 +42,7 @@ public class ReviewService {
         }
 
         try {
-            Firestore db = FirestoreClient.getFirestore();
-
-            Query query = db.collection(COLLECTION_NAME)
+            Query query = firestore.collection(COLLECTION_NAME)
                     .whereEqualTo("userId", request.getUserId())
                     .whereEqualTo("gameId", request.getGameId());
 
@@ -57,7 +62,7 @@ public class ReviewService {
             }
 
             DocumentReference docRef =
-                    db.collection(COLLECTION_NAME).document();
+                    firestore.collection(COLLECTION_NAME).document();
 
             Map<String, Object> data =
                     ReviewFirestoreMapper.toMap(request);
@@ -66,6 +71,7 @@ public class ReviewService {
 
             if (user != null) {
                 data.put("userName", user.getUsername());
+                data.put("profilePictureUrl", user.getProfilePictureUrl());
             }
 
             data.put(
@@ -92,22 +98,21 @@ public class ReviewService {
     }
 
     public ReviewDTO getReviewById(String id) throws InterruptedException, ExecutionException {
-        Firestore dbFirestore = FirestoreClient.getFirestore();
-        DocumentReference documentReference = dbFirestore.collection(COLLECTION_NAME).document(id);
+        DocumentReference documentReference = firestore.collection(COLLECTION_NAME).document(id);
         ApiFuture<DocumentSnapshot> future = documentReference.get();
         DocumentSnapshot document = future.get();
 
-        if (document.exists()) {
-            return ReviewFirestoreMapper.fromSnapshot(document);
+        if (!document.exists()) {
+            return null;
         }
 
         ReviewDTO review = ReviewFirestoreMapper.fromSnapshot(document);
 
         if (review != null) {
             var user = userService.buscarUsuarioPorId(review.getUserId());
-
             if (user != null) {
                 review.setUserName(user.getUsername());
+                review.setProfilePictureUrl(user.getProfilePictureUrl());
             } else {
                 review.setUserName("Usuário desconhecido");
             }
@@ -117,8 +122,7 @@ public class ReviewService {
     }
 
     public String updateReview(String id, CreateReviewRequest request) throws InterruptedException, ExecutionException {
-        Firestore dbFirestore = FirestoreClient.getFirestore();
-        DocumentReference docRef = dbFirestore.collection(COLLECTION_NAME).document(id);
+        DocumentReference docRef = firestore.collection(COLLECTION_NAME).document(id);
 
         ApiFuture<DocumentSnapshot> futureSnapshot = docRef.get();
         DocumentSnapshot document = futureSnapshot.get();
@@ -134,9 +138,7 @@ public class ReviewService {
     }
 
     public List<ReviewDTO> getReviewsByGame(String gameId) throws Exception {
-        Firestore db = FirestoreClient.getFirestore();
-
-        ApiFuture<QuerySnapshot> future = db.collection(COLLECTION_NAME)
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME)
                 .whereEqualTo("gameId", gameId)
                 .get();
 
@@ -152,6 +154,7 @@ public class ReviewService {
 
                 if (user != null) {
                     review.setUserName(user.getUsername());
+                    review.setProfilePictureUrl(user.getProfilePictureUrl());
                 } else {
                     review.setUserName("Usuário desconhecido");
                 }
@@ -164,25 +167,32 @@ public class ReviewService {
     }
 
     public Double getAverageRating(String gameId) throws Exception {
-        Firestore db = FirestoreClient.getFirestore();
+        QuerySnapshot snapshot = firestore.collection(COLLECTION_NAME)
+                .whereEqualTo("gameId", gameId)
+                .get()
+                .get();
 
-        Query query = db.collection(COLLECTION_NAME).whereEqualTo("gameId", gameId);
+        List<QueryDocumentSnapshot> documents = snapshot.getDocuments();
 
-        AggregateQuery aggregateQuery = query.aggregate(AggregateField.average("rating"));
+        if (documents.isEmpty()) return 0.0;
 
-        ApiFuture<AggregateQuerySnapshot> future = aggregateQuery.get();
-        AggregateQuerySnapshot snapshot = future.get();
+        double sum = 0.0;
+        int count = 0;
 
-        Double average = snapshot.get(AggregateField.average("rating"));
+        for (QueryDocumentSnapshot doc : documents) {
+            Double rating = doc.getDouble("rating");
+            if (rating != null) {
+                sum += rating;
+                count++;
+            }
+        }
 
-        return (average != null) ? Math.round(average * 10.0) / 10.0 : 0.0;
+        return count == 0 ? 0.0 : Math.round((sum / count) * 10.0) / 10.0;
     }
 
     public String deleteReview(String id, String authenticatedUserId) {
         try {
-            Firestore dbFirestore = FirestoreClient.getFirestore();
-
-            DocumentSnapshot snapshot = dbFirestore.collection(COLLECTION_NAME).document(id).get().get();
+            DocumentSnapshot snapshot = firestore.collection(COLLECTION_NAME).document(id).get().get();
 
             if (!snapshot.exists()) {
                 throw new IllegalArgumentException("Avaliação não encontrada.");
@@ -194,7 +204,7 @@ public class ReviewService {
                 throw new SecurityException("Operação não autorizada: Você não pode excluir a avaliação de outro usuário.");
             }
 
-            dbFirestore.collection(COLLECTION_NAME).document(id).delete().get();
+            firestore.collection(COLLECTION_NAME).document(id).delete().get();
             return "Avaliação " + id + " removida com sucesso.";
 
         } catch (InterruptedException e) {
@@ -206,7 +216,7 @@ public class ReviewService {
     }
 
     public GameReviewsPageDTO getReviewPage(String gameId, String userId) throws Exception {
-        var game = gameService.buscarJogoPorId(gameId);
+        GameDTO game = gameService.buscarJogoPorId(gameId).orElse(null);
         List<ReviewDTO> reviews = getReviewsByGame(gameId);
 
         double sum = reviews.stream().mapToDouble(ReviewDTO::getRating).sum();
