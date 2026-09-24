@@ -1,6 +1,7 @@
 package com.gamecontrol.service;
 
 import com.gamecontrol.dto.AuthResponse;
+import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
@@ -197,12 +198,72 @@ public class UserService {
         return Optional.empty();
     }
 
-    private static String lerSenhaComoTexto(QueryDocumentSnapshot documento) {
+    private static String lerSenhaComoTexto(DocumentSnapshot documento) {
         Object valor = documento.get("password");
         if (valor == null) {
             return null;
         }
         return valor instanceof String s ? s : String.valueOf(valor);
+    }
+
+    /**
+     * Altera a senha do usuário após validar a senha atual.
+     * <p>Tratamentos: usuário inexistente (404), senha atual incorreta (401),
+     * nova senha igual à atual (400) e confirmação divergente quando enviada (400).
+     */
+    public void changePassword(String id, ChangePasswordRequest requisicao) {
+        if (requisicao.getConfirmNewPassword() != null
+                && !requisicao.getConfirmNewPassword().isBlank()
+                && !requisicao.getNewPassword().equals(requisicao.getConfirmNewPassword())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A confirmação da nova senha não coincide."
+            );
+        }
+
+        try {
+            DocumentReference referencia = firestore
+                    .collection(nomeColecaoUsuarios)
+                    .document(id);
+
+            DocumentSnapshot documento = referencia.get().get();
+
+            if (!documento.exists()) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuário não encontrado."
+                );
+            }
+
+            String senhaArmazenada = lerSenhaComoTexto(documento);
+            if (senhaArmazenada == null
+                    || !passwordEncoder.matches(requisicao.getCurrentPassword(), senhaArmazenada)) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Senha atual incorreta."
+                );
+            }
+
+            if (passwordEncoder.matches(requisicao.getNewPassword(), senhaArmazenada)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "A nova senha deve ser diferente da senha atual."
+                );
+            }
+
+            String novaSenhaHash = passwordEncoder.encode(requisicao.getNewPassword());
+            referencia.update("password", novaSenhaHash).get();
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+        } catch (ExecutionException e) {
+            Throwable causa = e.getCause();
+            if (causa instanceof ResponseStatusException rse) {
+                throw rse;
+            }
+            throw new IllegalStateException("Erro ao alterar senha.", e);
+        }
     }
 
     public UserDTO buscarUsuarioPorId(String id) {

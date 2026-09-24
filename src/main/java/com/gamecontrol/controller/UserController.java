@@ -1,6 +1,7 @@
 package com.gamecontrol.controller;
 
 import com.gamecontrol.dto.AuthResponse;
+import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
@@ -58,6 +59,15 @@ public class UserController {
     ) {
         UserDTO atualizado = userService.atualizarUsuario(id, usuarioAtualizado);
         return ResponseEntity.ok(atualizado);
+    }
+
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Void> changePassword(
+            @PathVariable String id,
+            @Valid @RequestBody ChangePasswordRequest corpo
+    ) {
+        userService.changePassword(id, corpo);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/profile-picture")

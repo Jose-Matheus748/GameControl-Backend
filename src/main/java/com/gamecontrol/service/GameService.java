@@ -81,6 +81,38 @@ public class GameService {
         });
     }
 
+    /**
+     * Busca jogos cujo título contenha o termo informado (case-insensitive).
+     * Reaproveita a filtragem de conteúdo restrito de {@link #listarJogos()}.
+     * Se o título for nulo ou vazio, retorna todos os jogos.
+     */
+    public List<GameDTO> buscarJogosPorTitulo(String titulo) {
+        List<GameDTO> todos = listarJogos();
+
+        String termoBusca = titulo != null ? titulo.trim().toLowerCase() : "";
+        if (termoBusca.isEmpty()) {
+            return todos;
+        }
+
+        List<GameDTO> resultado = new ArrayList<>();
+        for (GameDTO jogo : todos) {
+            String tituloJogo = jogo.getTitle() != null ? jogo.getTitle().toLowerCase() : "";
+            if (tituloJogo.contains(termoBusca)) {
+                resultado.add(jogo);
+            }
+        }
+        return resultado;
+    }
+
+    /**
+     * Retorna a quantidade de jogos correspondentes ao termo de busca.
+     * Útil para o app mobile exibir "X jogos encontrados" sem precisar
+     * carregar a lista completa no cliente.
+     */
+    public long contarJogosPorTitulo(String titulo) {
+        return buscarJogosPorTitulo(titulo).size();
+    }
+
     public Optional<GameDTO> buscarJogoPorId(String id) {
         return executar(() -> {
             DocumentSnapshot documento = firestore.collection(nomeColecaoJogos).document(id).get().get();
