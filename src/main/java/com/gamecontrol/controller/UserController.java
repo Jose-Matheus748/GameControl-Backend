@@ -61,12 +61,18 @@ public class UserController {
         return ResponseEntity.ok(atualizado);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletarUsuario(@PathVariable String id) {
+        userService.deletarUsuario(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{id}/change-password")
-    public ResponseEntity<Void> changePassword(
+    public ResponseEntity<Void> alterarSenha(
             @PathVariable String id,
             @Valid @RequestBody ChangePasswordRequest corpo
     ) {
-        userService.changePassword(id, corpo);
+        userService.alterarSenha(id, corpo);
         return ResponseEntity.noContent().build();
     }
 
