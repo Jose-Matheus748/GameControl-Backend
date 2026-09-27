@@ -211,7 +211,7 @@ public class UserService {
      * <p>Tratamentos: usuário inexistente (404), senha atual incorreta (401),
      * nova senha igual à atual (400) e confirmação divergente quando enviada (400).
      */
-    public void changePassword(String id, ChangePasswordRequest requisicao) {
+    public void alterarSenha(String id, ChangePasswordRequest requisicao) {
         if (requisicao.getConfirmNewPassword() != null
                 && !requisicao.getConfirmNewPassword().isBlank()
                 && !requisicao.getNewPassword().equals(requisicao.getConfirmNewPassword())) {
@@ -263,6 +263,53 @@ public class UserService {
                 throw rse;
             }
             throw new IllegalStateException("Erro ao alterar senha.", e);
+        }
+    }
+
+    /**
+     * Remove o usuário e limpa as referências dele nas listas
+     * {@code following}/{@code followers} de quem seguia ou era seguido por ele.
+     */
+    public void deletarUsuario(String id) {
+        try {
+            DocumentReference referencia = firestore.collection(nomeColecaoUsuarios).document(id);
+            DocumentSnapshot documento = referencia.get().get();
+
+            if (!documento.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
+            }
+
+            QuerySnapshot quemSeguiaEsteUsuario = firestore.collection(nomeColecaoUsuarios)
+                    .whereArrayContains("following", id)
+                    .get()
+                    .get();
+
+            QuerySnapshot quemEraSeguidoPorEsteUsuario = firestore.collection(nomeColecaoUsuarios)
+                    .whereArrayContains("followers", id)
+                    .get()
+                    .get();
+
+            WriteBatch batch = firestore.batch();
+
+            for (QueryDocumentSnapshot doc : quemSeguiaEsteUsuario.getDocuments()) {
+                batch.update(doc.getReference(), "following", FieldValue.arrayRemove(id));
+            }
+            for (QueryDocumentSnapshot doc : quemEraSeguidoPorEsteUsuario.getDocuments()) {
+                batch.update(doc.getReference(), "followers", FieldValue.arrayRemove(id));
+            }
+
+            batch.delete(referencia);
+            batch.commit().get();
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+        } catch (ExecutionException e) {
+            Throwable causa = e.getCause();
+            if (causa instanceof ResponseStatusException rse) {
+                throw rse;
+            }
+            throw new IllegalStateException("Erro ao excluir usuário.", e);
         }
     }
 
