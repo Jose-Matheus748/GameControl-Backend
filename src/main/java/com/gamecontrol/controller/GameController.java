@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/games")
@@ -35,6 +37,21 @@ public class GameController {
     @GetMapping("/recentes")
     public ResponseEntity<List<GameDTO>>listarDozeJogos(){
         return ResponseEntity.ok(gameService.listarDozeJogos());
+    }
+
+    @GetMapping("/buscar")
+    public ResponseEntity<List<GameDTO>> buscarJogosPorTitulo(
+            @RequestParam(required = false) String titulo
+    ) {
+        return ResponseEntity.ok(gameService.buscarJogosPorTitulo(titulo));
+    }
+
+    @GetMapping("/buscar/quantidade")
+    public ResponseEntity<Map<String, Long>> contarJogosPorTitulo(
+            @RequestParam(required = false) String titulo
+    ) {
+        long total = gameService.contarJogosPorTitulo(titulo);
+        return ResponseEntity.ok(Map.of("total", total));
     }
 
     @GetMapping("/{id}")
