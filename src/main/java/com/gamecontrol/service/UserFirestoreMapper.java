@@ -2,7 +2,6 @@ package com.gamecontrol.service;
 
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.UserDTO;
-import com.gamecontrol.dto.UserResumoDTO;
 import com.gamecontrol.enums.Role;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -45,7 +44,6 @@ final class UserFirestoreMapper {
 
         dados.put("followers", new ArrayList<String>());
         dados.put("following", new ArrayList<String>());
-        dados.put("followersCount", 0L);
 
         return dados;
     }
@@ -100,17 +98,7 @@ final class UserFirestoreMapper {
         }
     }
 
-    static UserResumoDTO paraResumo(DocumentSnapshot documento) {
-        Long seguidores = documento.getLong("followersCount");
-        return new UserResumoDTO(
-                documento.getId(),
-                documento.getString("username"),
-                documento.getString("profilePictureUrl"),
-                seguidores != null ? seguidores : 0L
-        );
-    }
-
-    static List<String> lerListaIds(DocumentSnapshot documento, String campo) {
+    private static List<String> lerListaIds(DocumentSnapshot documento, String campo) {
         Object valor = documento.get(campo);
         if (!(valor instanceof List<?> lista)) {
             return new ArrayList<>();

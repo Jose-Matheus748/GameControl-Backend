@@ -5,12 +5,10 @@ import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
-import com.gamecontrol.dto.UserResumoDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
@@ -43,61 +41,6 @@ public class UserService {
         this.firestore = firestore;
         this.passwordEncoder = passwordEncoder;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
-    }
-
-    public static final int QUANTIDADE_DESTAQUES_PADRAO = 5;
-    private static final int QUANTIDADE_DESTAQUES_MAXIMA = 50;
-    private static final int OPERACOES_POR_BATCH = 500;
-
-    public List<UserResumoDTO> listarUsuariosEmDestaque(int quantidade) {
-        int quantidadeValida = Math.max(1, Math.min(quantidade, QUANTIDADE_DESTAQUES_MAXIMA));
-        try {
-            QuerySnapshot resultado = firestore.collection(nomeColecaoUsuarios)
-                    .orderBy("followersCount", Query.Direction.DESCENDING)
-                    .limit(quantidadeValida)
-                    .get()
-                    .get();
-            List<UserResumoDTO> usuarios = new ArrayList<>();
-            for (QueryDocumentSnapshot documento : resultado.getDocuments()) {
-                usuarios.add(UserFirestoreMapper.paraResumo(documento));
-            }
-            return usuarios;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Operação no Firestore interrompida.", e);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Erro ao listar usuários em destaque.", e);
-        }
-    }
-
-    public int sincronizarContadoresDeSeguidores() {
-        try {
-            QuerySnapshot todos = firestore.collection(nomeColecaoUsuarios).get().get();
-            List<QueryDocumentSnapshot> desatualizados = new ArrayList<>();
-            for (QueryDocumentSnapshot documento : todos.getDocuments()) {
-                long seguidores = UserFirestoreMapper.lerListaIds(documento, "followers").size();
-                Long armazenado = documento.getLong("followersCount");
-                if (armazenado == null || armazenado != seguidores) {
-                    desatualizados.add(documento);
-                }
-            }
-
-            for (int inicio = 0; inicio < desatualizados.size(); inicio += OPERACOES_POR_BATCH) {
-                WriteBatch batch = firestore.batch();
-                int fim = Math.min(inicio + OPERACOES_POR_BATCH, desatualizados.size());
-                for (QueryDocumentSnapshot documento : desatualizados.subList(inicio, fim)) {
-                    long seguidores = UserFirestoreMapper.lerListaIds(documento, "followers").size();
-                    batch.update(documento.getReference(), "followersCount", seguidores);
-                }
-                batch.commit().get();
-            }
-            return desatualizados.size();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Operação no Firestore interrompida.", e);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Erro ao sincronizar contadores de seguidores.", e);
-        }
     }
 
     public List<UserDTO> listarUsuarios() {
@@ -352,11 +295,7 @@ public class UserService {
                 batch.update(doc.getReference(), "following", FieldValue.arrayRemove(id));
             }
             for (QueryDocumentSnapshot doc : quemEraSeguidoPorEsteUsuario.getDocuments()) {
-                batch.update(
-                        doc.getReference(),
-                        "followers", FieldValue.arrayRemove(id),
-                        "followersCount", FieldValue.increment(-1)
-                );
+                batch.update(doc.getReference(), "followers", FieldValue.arrayRemove(id));
             }
 
             batch.delete(referencia);
@@ -483,16 +422,9 @@ public class UserService {
             if (!snapFollower.exists() || !snapFollowed.exists()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
             }
-            if (UserFirestoreMapper.lerListaIds(snapFollowed, "followers").contains(f)) {
-                return;
-            }
             WriteBatch batch = firestore.batch();
             batch.update(refFollower, "following", FieldValue.arrayUnion(d));
-            batch.update(
-                    refFollowed,
-                    "followers", FieldValue.arrayUnion(f),
-                    "followersCount", FieldValue.increment(1)
-            );
+            batch.update(refFollowed, "followers", FieldValue.arrayUnion(f));
             batch.commit().get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -524,16 +456,9 @@ public class UserService {
             if (!snapFollower.exists() || !snapFollowed.exists()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
             }
-            if (!UserFirestoreMapper.lerListaIds(snapFollowed, "followers").contains(f)) {
-                return;
-            }
             WriteBatch batch = firestore.batch();
             batch.update(refFollower, "following", FieldValue.arrayRemove(d));
-            batch.update(
-                    refFollowed,
-                    "followers", FieldValue.arrayRemove(f),
-                    "followersCount", FieldValue.increment(-1)
-            );
+            batch.update(refFollowed, "followers", FieldValue.arrayRemove(f));
             batch.commit().get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
