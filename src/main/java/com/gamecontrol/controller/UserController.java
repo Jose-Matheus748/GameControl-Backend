@@ -5,6 +5,7 @@ import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
 import com.gamecontrol.dto.UserDTO;
+import com.gamecontrol.dto.UserResumoDTO;
 import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -34,6 +36,13 @@ public class UserController {
     @GetMapping
     public ResponseEntity<List<UserDTO>> listarUsuarios() {
         return ResponseEntity.ok(userService.listarUsuarios());
+    }
+
+    @GetMapping("/destaques")
+    public ResponseEntity<List<UserResumoDTO>> listarUsuariosEmDestaque(
+            @RequestParam(defaultValue = "" + UserService.QUANTIDADE_DESTAQUES_PADRAO) int limite
+    ) {
+        return ResponseEntity.ok(userService.listarUsuariosEmDestaque(limite));
     }
 
     @PostMapping
