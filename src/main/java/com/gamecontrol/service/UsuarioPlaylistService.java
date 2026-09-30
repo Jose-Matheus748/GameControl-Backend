@@ -1,12 +1,15 @@
 package com.gamecontrol.service;
 
 import com.gamecontrol.dto.request.CreatePlaylistRequest;
+import com.gamecontrol.dto.GameDTO;
 import com.gamecontrol.dto.UsuarioPlayListDTO;
 import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,10 +21,16 @@ public class UsuarioPlaylistService {
 
     private final Firestore firestore;
     private final String colecao;
+    private final GameService gameService;
 
-    public UsuarioPlaylistService(Firestore firestore, @Value("${firebase.collection.playlists}") String colecao) {
+    public UsuarioPlaylistService(
+            Firestore firestore,
+            @Value("${firebase.collection.playlists}") String colecao,
+            GameService gameService
+    ) {
         this.firestore = firestore;
         this.colecao = colecao;
+        this.gameService = gameService;
     }
 
     public UsuarioPlayListDTO criarPlaylist(String usuarioIdAutenticado, CreatePlaylistRequest request) {
@@ -38,12 +47,12 @@ public class UsuarioPlaylistService {
             }
 
             ref.set(dados).get();
-            return PlaylistFirestoreMapper.fromSnapshot(ref.get().get());
+            return comJogos(PlaylistFirestoreMapper.fromSnapshot(ref.get().get()));
         });
     }
 
-    public List<UsuarioPlayListDTO> listarPlaylistsPorUsuario(String usuarioId) {
-        return executar(() -> {
+    public List<UsuarioPlayListDTO> listarPlaylistsPorUsuario(String usuarioId, boolean incluirJogos) {
+        List<UsuarioPlayListDTO> playlists = executar(() -> {
             QuerySnapshot resultado = firestore.collection(colecao)
                     .whereEqualTo("usuarioId", usuarioId)
                     .get().get();
@@ -53,12 +62,16 @@ public class UsuarioPlaylistService {
             }
             return lista;
         });
+        if (incluirJogos) {
+            preencherJogos(playlists);
+        }
+        return playlists;
     }
 
     public Optional<UsuarioPlayListDTO> buscarPlaylistPorID(String id) {
         return executar(() -> {
             DocumentSnapshot doc = firestore.collection(colecao).document(id).get().get();
-            return doc.exists() ? Optional.of(PlaylistFirestoreMapper.fromSnapshot(doc)) : Optional.empty();
+            return doc.exists() ? Optional.of(comJogos(PlaylistFirestoreMapper.fromSnapshot(doc))) : Optional.empty();
         });
     }
 
@@ -69,7 +82,7 @@ public class UsuarioPlaylistService {
 
             Map<String, Object> campos = PlaylistFirestoreMapper.patchMap(dto);
             ref.set(campos, SetOptions.merge()).get();
-            return PlaylistFirestoreMapper.fromSnapshot(ref.get().get());
+            return comJogos(PlaylistFirestoreMapper.fromSnapshot(ref.get().get()));
         });
     }
 
@@ -86,7 +99,7 @@ public class UsuarioPlaylistService {
         return executar(() -> {
             DocumentReference ref = firestore.collection(colecao).document(playlistId);
             ref.update("jogosIds", FieldValue.arrayUnion(gameId)).get();
-            return PlaylistFirestoreMapper.fromSnapshot(ref.get().get());
+            return comJogos(PlaylistFirestoreMapper.fromSnapshot(ref.get().get()));
         });
     }
 
@@ -94,8 +107,38 @@ public class UsuarioPlaylistService {
         return executar(() -> {
             DocumentReference ref = firestore.collection(colecao).document(playlistId);
             ref.update("jogosIds", FieldValue.arrayRemove(gameId)).get();
-            return PlaylistFirestoreMapper.fromSnapshot(ref.get().get());
+            return comJogos(PlaylistFirestoreMapper.fromSnapshot(ref.get().get()));
         });
+    }
+
+    private UsuarioPlayListDTO comJogos(UsuarioPlayListDTO playlist) {
+        if (playlist != null) {
+            preencherJogos(List.of(playlist));
+        }
+        return playlist;
+    }
+
+    private void preencherJogos(List<UsuarioPlayListDTO> playlists) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (UsuarioPlayListDTO playlist : playlists) {
+            ids.addAll(playlist.getJogosIds());
+        }
+
+        Map<String, GameDTO> jogosPorId = new HashMap<>();
+        for (GameDTO jogo : gameService.buscarJogosPorIds(ids)) {
+            jogosPorId.put(jogo.getId(), jogo);
+        }
+
+        for (UsuarioPlayListDTO playlist : playlists) {
+            List<GameDTO> jogos = new ArrayList<>();
+            for (String id : playlist.getJogosIds()) {
+                GameDTO jogo = jogosPorId.get(id);
+                if (jogo != null) {
+                    jogos.add(jogo);
+                }
+            }
+            playlist.setJogos(jogos);
+        }
     }
 
     private static <T> T executar(Callable<T> operacao) {

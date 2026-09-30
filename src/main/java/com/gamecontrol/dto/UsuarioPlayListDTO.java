@@ -16,6 +16,7 @@ public class UsuarioPlayListDTO {
     private String descricao;
     private String usuarioId;
     private List<String> jogosIds = new ArrayList<>();
+    private List<GameDTO> jogos;
     private Instant syncedAt;
 
 }

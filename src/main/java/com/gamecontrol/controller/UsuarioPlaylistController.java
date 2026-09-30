@@ -34,8 +34,10 @@ public class UsuarioPlaylistController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    public ResponseEntity<List<UsuarioPlayListDTO>> listarPlaylistsPorUsuario(@PathVariable String usuarioId) {
-        return ResponseEntity.ok(usuarioPlaylistService.listarPlaylistsPorUsuario(usuarioId));
+    public ResponseEntity<List<UsuarioPlayListDTO>> listarPlaylistsPorUsuario(
+            @PathVariable String usuarioId,
+            @RequestParam(defaultValue = "false") boolean incluirJogos) {
+        return ResponseEntity.ok(usuarioPlaylistService.listarPlaylistsPorUsuario(usuarioId, incluirJogos));
     }
 
     @GetMapping("/{id}")

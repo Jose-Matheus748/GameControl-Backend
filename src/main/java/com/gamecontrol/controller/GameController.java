@@ -2,6 +2,7 @@ package com.gamecontrol.controller;
 
 import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
+import com.gamecontrol.dto.PaginaDTO;
 import com.gamecontrol.service.GameService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,29 @@ public class GameController {
     @GetMapping("/recentes")
     public ResponseEntity<List<GameDTO>>listarDozeJogos(){
         return ResponseEntity.ok(gameService.listarDozeJogos());
+    }
+
+    @GetMapping("/destaques")
+    public ResponseEntity<List<GameDTO>> listarJogosEmDestaque(
+            @RequestParam(defaultValue = "" + GameService.QUANTIDADE_DESTAQUES_PADRAO) int limite
+    ) {
+        return ResponseEntity.ok(gameService.listarJogosEmDestaque(limite));
+    }
+
+    @GetMapping("/catalogo")
+    public ResponseEntity<PaginaDTO<GameDTO>> listarCatalogo(
+            @RequestParam(required = false) String titulo,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "" + GameService.TAMANHO_PAGINA_PADRAO) int tamanho
+    ) {
+        return ResponseEntity.ok(gameService.listarCatalogo(titulo, pagina, tamanho));
+    }
+
+    @GetMapping("/jogo-da-semana")
+    public ResponseEntity<GameDTO> buscarJogoDaSemana() {
+        return gameService.buscarJogoDaSemana()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/buscar")
