@@ -32,14 +32,17 @@ public class UserService {
     private final Firestore firestore;
     private final String nomeColecaoUsuarios;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
 
     public UserService(
             Firestore firestore,
             PasswordEncoder passwordEncoder,
+            NotificationService notificationService,
             @Value("${firebase.collection.users}") String nomeColecaoUsuarios
     ) {
         this.firestore = firestore;
         this.passwordEncoder = passwordEncoder;
+        this.notificationService = notificationService;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
     }
 
@@ -422,10 +425,18 @@ public class UserService {
             if (!snapFollower.exists() || !snapFollowed.exists()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
             }
+            // Evita notificar de novo se o usuário já seguia (a chamada é idempotente).
+            List<String> seguidoresAtuais = UserFirestoreMapper.lerListaIds(snapFollowed, "followers");
+            boolean jaSeguia = seguidoresAtuais.contains(f);
+
             WriteBatch batch = firestore.batch();
             batch.update(refFollower, "following", FieldValue.arrayUnion(d));
             batch.update(refFollowed, "followers", FieldValue.arrayUnion(f));
             batch.commit().get();
+
+            if (!jaSeguia) {
+                notificationService.notificarNovoSeguidor(f, snapFollower.getString("username"), d);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Operação interrompida.", e);
