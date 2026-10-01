@@ -5,6 +5,7 @@ import com.google.cloud.firestore.Firestore;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.cloud.FirestoreClient;
+import com.google.firebase.messaging.FirebaseMessaging;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,5 +58,14 @@ public class FirebaseConfig {
         }
 
         return FirestoreClient.getFirestore();
+    }
+
+    /**
+     * Cliente do Firebase Cloud Messaging. Recebe o {@link Firestore} só para
+     * garantir que o FirebaseApp já foi inicializado pelo bean acima.
+     */
+    @Bean
+    public FirebaseMessaging firebaseMessaging(Firestore firestore) {
+        return FirebaseMessaging.getInstance();
     }
 }
