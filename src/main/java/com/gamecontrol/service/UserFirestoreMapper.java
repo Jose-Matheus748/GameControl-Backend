@@ -98,7 +98,7 @@ final class UserFirestoreMapper {
         }
     }
 
-    private static List<String> lerListaIds(DocumentSnapshot documento, String campo) {
+    static List<String> lerListaIds(DocumentSnapshot documento, String campo) {
         Object valor = documento.get(campo);
         if (!(valor instanceof List<?> lista)) {
             return new ArrayList<>();
