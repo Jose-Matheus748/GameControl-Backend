@@ -1,6 +1,7 @@
 package com.gamecontrol;
 
 import com.google.cloud.firestore.Firestore;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.messaging.FirebaseMessaging;
 import org.mockito.Mockito;
 import org.springframework.context.annotation.Bean;
@@ -19,5 +20,10 @@ public class TestFirestoreStubConfig {
     @Bean
     public FirebaseMessaging firebaseMessaging() {
         return Mockito.mock(FirebaseMessaging.class);
+    }
+
+    @Bean
+    public FirebaseAuth firebaseAuth() {
+        return Mockito.mock(FirebaseAuth.class);
     }
 }

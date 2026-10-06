@@ -4,6 +4,7 @@ import com.gamecontrol.dto.AuthResponse;
 import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
+import com.gamecontrol.dto.request.RefreshTokenRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -12,18 +13,18 @@ import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
+import com.google.firebase.auth.AuthErrorCode;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.UserRecord;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -31,18 +32,21 @@ public class UserService {
 
     private final Firestore firestore;
     private final String nomeColecaoUsuarios;
-    private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
+    private final FirebaseAuth firebaseAuth;
+    private final FirebaseAuthRestClient authRestClient;
 
     public UserService(
             Firestore firestore,
-            PasswordEncoder passwordEncoder,
             NotificationService notificationService,
+            FirebaseAuth firebaseAuth,
+            FirebaseAuthRestClient authRestClient,
             @Value("${firebase.collection.users}") String nomeColecaoUsuarios
     ) {
         this.firestore = firestore;
-        this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
+        this.firebaseAuth = firebaseAuth;
+        this.authRestClient = authRestClient;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
     }
 
@@ -69,144 +73,69 @@ public class UserService {
         }
     }
 
-    /**
-     * Cria usuário no Firestore com senha criptografada via BCrypt.
-     */
     public UserDTO cadastrarUsuario(CreateUserRequest requisicao) {
+        String email = requisicao.getEmail().trim().toLowerCase(Locale.ROOT);
+        requisicao.setEmail(email);
+
         try {
-            requisicao.setEmail(
-                    requisicao.getEmail()
-                            .trim()
-                            .toLowerCase(Locale.ROOT)
-            );
+            UserRecord usuarioAuth = firebaseAuth.createUser(new UserRecord.CreateRequest()
+                    .setEmail(email)
+                    .setPassword(requisicao.getPassword())
+                    .setDisplayName(requisicao.getUsername().trim()));
 
-            if (buscarDocumentoPorEmail(requisicao.getEmail()).isPresent()) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "E-mail já cadastrado."
-                );
+            DocumentReference referencia = firestore.collection(nomeColecaoUsuarios).document(usuarioAuth.getUid());
+            try {
+                referencia.set(UserFirestoreMapper.paraDocumento(requisicao)).get();
+            } catch (InterruptedException | ExecutionException e) {
+                removerDoAuthSilenciosamente(usuarioAuth.getUid());
+                throw e;
             }
 
-            String senhaHash =
-                    passwordEncoder.encode(requisicao.getPassword());
+            return UserFirestoreMapper.paraDto(referencia.get().get());
 
-            Map<String, Object> dados =
-                    UserFirestoreMapper.paraDocumento(
-                            requisicao,
-                            senhaHash
-                    );
-
-            DocumentReference referencia =
-                    firestore.collection(nomeColecaoUsuarios).document();
-
-            referencia.set(dados).get();
-
-            return UserFirestoreMapper.paraDto(
-                    referencia.get().get()
-            );
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Login: compara senha em texto plano enviada pelo usuário
-     * com a senha criptografada armazenada no Firestore usando BCrypt.
-     */
-    public AuthResponse login(LoginRequest requisicao) {
-        try {
-            Optional<QueryDocumentSnapshot> documentoOpt = buscarDocumentoPorEmail(requisicao.getEmail());
-            if (documentoOpt.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas.");
+        } catch (FirebaseAuthException e) {
+            if (e.getAuthErrorCode() == AuthErrorCode.EMAIL_ALREADY_EXISTS) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado.");
             }
-            QueryDocumentSnapshot documento = documentoOpt.get();
-            String senhaArmazenada = lerSenhaComoTexto(documento);
-            if (senhaArmazenada == null ||
-                    !passwordEncoder.matches(
-                            requisicao.getPassword(),
-                            senhaArmazenada
-                    )) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Credenciais inválidas."
-                );
-            }
-            UserDTO usuario = UserFirestoreMapper.paraDto(documento);
-            String token = UUID.randomUUID().toString();
-            return new AuthResponse(usuario, token);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Operação no Firestore interrompida.", e);
         } catch (ExecutionException e) {
-            Throwable causa = e.getCause();
-            if (causa instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new IllegalStateException(
-                    causa != null ? causa.getMessage() : "Falha ao acessar o Firestore.",
-                    e
-            );
+            throw new IllegalStateException("Erro ao cadastrar usuário.", e);
         }
     }
 
-    /**
-     * Firestore compara strings com case-sensitive. Aceita e-mail em qualquer capitalização
-     * e documentos antigos sem o campo {@code emailLower}.
-     */
-    private Optional<QueryDocumentSnapshot> buscarDocumentoPorEmail(String emailBruto)
-            throws ExecutionException, InterruptedException {
-        if (emailBruto == null || emailBruto.isBlank()) {
-            return Optional.empty();
-        }
-        String trimmed = emailBruto.trim();
-        String normalizado = trimmed.toLowerCase(Locale.ROOT);
-
-        QuerySnapshot resultado = firestore.collection(nomeColecaoUsuarios)
-                .whereEqualTo("email", normalizado)
-                .limit(1)
-                .get()
-                .get();
-        if (!resultado.isEmpty()) {
-            return Optional.of(resultado.getDocuments().get(0));
-        }
-
-        if (!normalizado.equals(trimmed)) {
-            resultado = firestore.collection(nomeColecaoUsuarios)
-                    .whereEqualTo("email", trimmed)
-                    .limit(1)
-                    .get()
-                    .get();
-            if (!resultado.isEmpty()) {
-                return Optional.of(resultado.getDocuments().get(0));
-            }
-        }
-
-        resultado = firestore.collection(nomeColecaoUsuarios)
-                .whereEqualTo("emailLower", normalizado)
-                .limit(1)
-                .get()
-                .get();
-        if (!resultado.isEmpty()) {
-            return Optional.of(resultado.getDocuments().get(0));
-        }
-
-        QuerySnapshot todos = firestore.collection(nomeColecaoUsuarios).get().get();
-        for (QueryDocumentSnapshot doc : todos.getDocuments()) {
-            String emailDoc = doc.getString("email");
-            if (emailDoc != null && emailDoc.trim().equalsIgnoreCase(trimmed)) {
-                return Optional.of(doc);
-            }
-        }
-        return Optional.empty();
+    public AuthResponse login(LoginRequest requisicao) {
+        FirebaseAuthRestClient.SessaoFirebase sessao = authRestClient.entrarComEmailESenha(
+                requisicao.getEmail().trim().toLowerCase(Locale.ROOT),
+                requisicao.getPassword()
+        );
+        return new AuthResponse(
+                buscarUsuarioPorId(sessao.uid()),
+                sessao.idToken(),
+                sessao.refreshToken(),
+                sessao.expiresIn()
+        );
     }
 
-    private static String lerSenhaComoTexto(DocumentSnapshot documento) {
-        Object valor = documento.get("password");
-        if (valor == null) {
-            return null;
+    public AuthResponse renovarToken(RefreshTokenRequest requisicao) {
+        FirebaseAuthRestClient.SessaoFirebase sessao = authRestClient.renovarToken(requisicao.getRefreshToken());
+        return new AuthResponse(
+                buscarUsuarioPorId(sessao.uid()),
+                sessao.idToken(),
+                sessao.refreshToken(),
+                sessao.expiresIn()
+        );
+    }
+
+    private void removerDoAuthSilenciosamente(String uid) {
+        try {
+            firebaseAuth.deleteUser(uid);
+        } catch (FirebaseAuthException ignorada) {
         }
-        return valor instanceof String s ? s : String.valueOf(valor);
     }
 
     /**
@@ -224,47 +153,32 @@ public class UserService {
             );
         }
 
+        if (requisicao.getNewPassword().equals(requisicao.getCurrentPassword())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A nova senha deve ser diferente da senha atual."
+            );
+        }
+
+        UserDTO usuario = buscarUsuarioPorId(id);
+
+        FirebaseAuthRestClient.SessaoFirebase sessao;
         try {
-            DocumentReference referencia = firestore
-                    .collection(nomeColecaoUsuarios)
-                    .document(id);
-
-            DocumentSnapshot documento = referencia.get().get();
-
-            if (!documento.exists()) {
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Usuário não encontrado."
-                );
+            sessao = authRestClient.entrarComEmailESenha(usuario.getEmail(), requisicao.getCurrentPassword());
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Senha atual incorreta.");
             }
+            throw e;
+        }
 
-            String senhaArmazenada = lerSenhaComoTexto(documento);
-            if (senhaArmazenada == null
-                    || !passwordEncoder.matches(requisicao.getCurrentPassword(), senhaArmazenada)) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Senha atual incorreta."
-                );
-            }
+        if (!id.equals(sessao.uid())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário não corresponde às credenciais.");
+        }
 
-            if (passwordEncoder.matches(requisicao.getNewPassword(), senhaArmazenada)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "A nova senha deve ser diferente da senha atual."
-                );
-            }
-
-            String novaSenhaHash = passwordEncoder.encode(requisicao.getNewPassword());
-            referencia.update("password", novaSenhaHash).get();
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Operação interrompida.", e);
-        } catch (ExecutionException e) {
-            Throwable causa = e.getCause();
-            if (causa instanceof ResponseStatusException rse) {
-                throw rse;
-            }
+        try {
+            firebaseAuth.updateUser(new UserRecord.UpdateRequest(id).setPassword(requisicao.getNewPassword()));
+        } catch (FirebaseAuthException e) {
             throw new IllegalStateException("Erro ao alterar senha.", e);
         }
     }
@@ -303,6 +217,14 @@ public class UserService {
 
             batch.delete(referencia);
             batch.commit().get();
+
+            try {
+                firebaseAuth.deleteUser(id);
+            } catch (FirebaseAuthException e) {
+                if (e.getAuthErrorCode() != AuthErrorCode.USER_NOT_FOUND) {
+                    throw new IllegalStateException("Erro ao excluir usuário do Firebase Auth.", e);
+                }
+            }
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
