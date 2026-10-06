@@ -4,6 +4,7 @@ import com.gamecontrol.dto.AuthResponse;
 import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.request.LoginRequest;
+import com.gamecontrol.dto.request.RefreshTokenRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
@@ -45,6 +46,11 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest corpo) {
         return ResponseEntity.ok(userService.login(corpo));
+    }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<AuthResponse> renovarToken(@Valid @RequestBody RefreshTokenRequest corpo) {
+        return ResponseEntity.ok(userService.renovarToken(corpo));
     }
 
     @GetMapping("/{id}")
