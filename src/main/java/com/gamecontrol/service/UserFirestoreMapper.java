@@ -1,7 +1,7 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.request.CreateUserRequest;
 import com.gamecontrol.dto.UserDTO;
+import com.gamecontrol.dto.request.CreateUserProfileRequest;
 import com.gamecontrol.enums.Role;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -20,13 +20,20 @@ final class UserFirestoreMapper {
     private UserFirestoreMapper() {
     }
 
-    static Map<String, Object> paraDocumento(CreateUserRequest requisicao) {
+    /**
+     * Cria o documento de perfil sem aceitar identidade, e-mail ou papel do cliente.
+     * O e-mail é obtido da conta já existente no Firebase Authentication.
+     */
+    static Map<String, Object> paraDocumento(CreateUserProfileRequest requisicao, String emailFirebase) {
         Map<String, Object> dados = new LinkedHashMap<>();
-        String email = requisicao.getEmail().trim().toLowerCase(Locale.ROOT);
-        dados.put("email", email);
-        dados.put("emailLower", email);
-        dados.put("username", requisicao.getUsername().trim());
 
+        if (emailFirebase != null && !emailFirebase.isBlank()) {
+            String email = emailFirebase.trim().toLowerCase(Locale.ROOT);
+            dados.put("email", email);
+            dados.put("emailLower", email);
+        }
+
+        dados.put("username", requisicao.getUsername().trim());
         putIfPresent(dados, "bio", requisicao.getBio());
         putIfPresent(dados, "profilePictureUrl", requisicao.getProfilePictureUrl());
 
@@ -35,9 +42,9 @@ final class UserFirestoreMapper {
         }
 
         putIfPresent(dados, "country", requisicao.getCountry());
-        Role papel = requisicao.getRole() != null ? requisicao.getRole() : Role.USER;
-        dados.put("role", papel.name());
 
+        // O papel inicial é definido pelo servidor; o cliente não escolhe role.
+        dados.put("role", Role.USER.name());
         dados.put("followers", new ArrayList<String>());
         dados.put("following", new ArrayList<String>());
 
@@ -69,7 +76,9 @@ final class UserFirestoreMapper {
 
         Timestamp ts = documento.getTimestamp("birthDate");
         if (ts != null) {
-            return Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()).atZone(ZoneOffset.UTC).toLocalDate();
+            return Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos())
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalDate();
         }
 
         return null;
@@ -77,7 +86,6 @@ final class UserFirestoreMapper {
 
     private static Role lerPapel(DocumentSnapshot documento) {
         String nome = documento.getString("role");
-        
         if (nome == null || nome.isBlank()) {
             return Role.USER;
         }

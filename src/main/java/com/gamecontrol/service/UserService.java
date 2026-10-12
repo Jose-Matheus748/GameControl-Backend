@@ -1,10 +1,7 @@
 package com.gamecontrol.service;
 
-import com.gamecontrol.dto.AuthResponse;
 import com.gamecontrol.dto.request.ChangePasswordRequest;
-import com.gamecontrol.dto.request.CreateUserRequest;
-import com.gamecontrol.dto.request.LoginRequest;
-import com.gamecontrol.dto.request.RefreshTokenRequest;
+import com.gamecontrol.dto.request.CreateUserProfileRequest;
 import com.gamecontrol.dto.UserDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -24,7 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -34,19 +31,16 @@ public class UserService {
     private final String nomeColecaoUsuarios;
     private final NotificationService notificationService;
     private final FirebaseAuth firebaseAuth;
-    private final FirebaseAuthRestClient authRestClient;
 
     public UserService(
             Firestore firestore,
             NotificationService notificationService,
             FirebaseAuth firebaseAuth,
-            FirebaseAuthRestClient authRestClient,
             @Value("${firebase.collection.users}") String nomeColecaoUsuarios
     ) {
         this.firestore = firestore;
         this.notificationService = notificationService;
         this.firebaseAuth = firebaseAuth;
-        this.authRestClient = authRestClient;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
     }
 
@@ -73,75 +67,70 @@ public class UserService {
         }
     }
 
-    public UserDTO cadastrarUsuario(CreateUserRequest requisicao) {
-        String email = requisicao.getEmail().trim().toLowerCase(Locale.ROOT);
-        requisicao.setEmail(email);
+    /**
+     * Cria somente o perfil no Firestore para uma conta que já existe no Firebase Auth.
+     * O UID vem do token validado no filtro; o e-mail é consultado no Firebase Admin SDK.
+     * DocumentReference.create é atômico e impede que uma chamada repetida sobrescreva o perfil.
+     */
+    public UserDTO cadastrarUsuario(CreateUserProfileRequest requisicao, String uidAutenticado) {
+        if (uidAutenticado == null || uidAutenticado.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuário não autenticado.");
+        }
+
+        final UserRecord usuarioFirebase;
+        try {
+            usuarioFirebase = firebaseAuth.getUser(uidAutenticado);
+        } catch (FirebaseAuthException e) {
+            if (e.getAuthErrorCode() == AuthErrorCode.USER_NOT_FOUND) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Conta autenticada não encontrada.");
+            }
+            throw new IllegalStateException("Não foi possível consultar a conta no Firebase Authentication.", e);
+        }
+
+        String email = usuarioFirebase.getEmail();
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A conta do Firebase Authentication não possui e-mail associado."
+            );
+        }
+
+        DocumentReference referencia = firestore.collection(nomeColecaoUsuarios).document(uidAutenticado);
+        Map<String, Object> dados = UserFirestoreMapper.paraDocumento(requisicao, email);
 
         try {
-            UserRecord usuarioAuth = firebaseAuth.createUser(new UserRecord.CreateRequest()
-                    .setEmail(email)
-                    .setPassword(requisicao.getPassword())
-                    .setDisplayName(requisicao.getUsername().trim()));
-
-            DocumentReference referencia = firestore.collection(nomeColecaoUsuarios).document(usuarioAuth.getUid());
-            try {
-                referencia.set(UserFirestoreMapper.paraDocumento(requisicao)).get();
-            } catch (InterruptedException | ExecutionException e) {
-                removerDoAuthSilenciosamente(usuarioAuth.getUid());
-                throw e;
-            }
-
+            referencia.create(dados).get();
             return UserFirestoreMapper.paraDto(referencia.get().get());
-
-        } catch (FirebaseAuthException e) {
-            if (e.getAuthErrorCode() == AuthErrorCode.EMAIL_ALREADY_EXISTS) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado.");
-            }
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Operação no Firestore interrompida.", e);
+            throw new IllegalStateException("Criação do perfil interrompida.", e);
         } catch (ExecutionException e) {
-            throw new IllegalStateException("Erro ao cadastrar usuário.", e);
+            Throwable causa = e.getCause();
+            if (documentoJaExiste(causa)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "O perfil deste usuário já foi criado.");
+            }
+            if (causa instanceof ResponseStatusException rse) {
+                throw rse;
+            }
+            throw new IllegalStateException("Erro ao criar o perfil do usuário no Firestore.", e);
         }
     }
 
-    public AuthResponse login(LoginRequest requisicao) {
-        FirebaseAuthRestClient.SessaoFirebase sessao = authRestClient.entrarComEmailESenha(
-                requisicao.getEmail().trim().toLowerCase(Locale.ROOT),
-                requisicao.getPassword()
-        );
-        return new AuthResponse(
-                buscarUsuarioPorId(sessao.uid()),
-                sessao.idToken(),
-                sessao.refreshToken(),
-                sessao.expiresIn()
-        );
-    }
-
-    public AuthResponse renovarToken(RefreshTokenRequest requisicao) {
-        FirebaseAuthRestClient.SessaoFirebase sessao = authRestClient.renovarToken(requisicao.getRefreshToken());
-        return new AuthResponse(
-                buscarUsuarioPorId(sessao.uid()),
-                sessao.idToken(),
-                sessao.refreshToken(),
-                sessao.expiresIn()
-        );
-    }
-
-    private void removerDoAuthSilenciosamente(String uid) {
-        try {
-            firebaseAuth.deleteUser(uid);
-        } catch (FirebaseAuthException ignorada) {
+    private boolean documentoJaExiste(Throwable erro) {
+        Throwable atual = erro;
+        while (atual != null) {
+            if (atual instanceof com.google.api.gax.rpc.AlreadyExistsException) {
+                return true;
+            }
+            atual = atual.getCause();
         }
+        return false;
     }
 
     /**
-     * Altera a senha do usuário após validar a senha atual.
-     * <p>Tratamentos: usuário inexistente (404), senha atual incorreta (401),
-     * nova senha igual à atual (400) e confirmação divergente quando enviada (400).
+     * Atualiza a senha via Firebase Admin SDK. A rota deve ser restrita ao UID autenticado.
+     * Para a experiência final do app, recomenda-se usar updatePassword() no Firebase SDK do cliente,
+     * que também aplica a exigência de login recente quando necessário.
      */
     public void alterarSenha(String id, ChangePasswordRequest requisicao) {
         if (requisicao.getConfirmNewPassword() != null
@@ -153,33 +142,13 @@ public class UserService {
             );
         }
 
-        if (requisicao.getNewPassword().equals(requisicao.getCurrentPassword())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "A nova senha deve ser diferente da senha atual."
-            );
-        }
-
-        UserDTO usuario = buscarUsuarioPorId(id);
-
-        FirebaseAuthRestClient.SessaoFirebase sessao;
-        try {
-            sessao = authRestClient.entrarComEmailESenha(usuario.getEmail(), requisicao.getCurrentPassword());
-        } catch (ResponseStatusException e) {
-            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Senha atual incorreta.");
-            }
-            throw e;
-        }
-
-        if (!id.equals(sessao.uid())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário não corresponde às credenciais.");
-        }
-
         try {
             firebaseAuth.updateUser(new UserRecord.UpdateRequest(id).setPassword(requisicao.getNewPassword()));
         } catch (FirebaseAuthException e) {
-            throw new IllegalStateException("Erro ao alterar senha.", e);
+            if (e.getAuthErrorCode() == AuthErrorCode.USER_NOT_FOUND) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado.");
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não foi possível alterar a senha.", e);
         }
     }
 
