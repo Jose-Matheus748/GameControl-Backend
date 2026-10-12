@@ -3,7 +3,9 @@ package com.gamecontrol.controller;
 import com.gamecontrol.dto.request.CreateGameRequest;
 import com.gamecontrol.dto.GameDTO;
 import com.gamecontrol.dto.PaginaDTO;
+import com.gamecontrol.dto.TopRatedGameDTO;
 import com.gamecontrol.service.GameService;
+import com.gamecontrol.service.ReviewService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,9 +27,11 @@ import java.util.Map;
 public class GameController {
 
     private final GameService gameService;
+    private final ReviewService reviewService;
 
-    public GameController(GameService gameService) {
+    public GameController(GameService gameService, ReviewService reviewService) {
         this.gameService = gameService;
+        this.reviewService = reviewService;
     }
 
     @GetMapping
@@ -59,6 +63,13 @@ public class GameController {
     @GetMapping("/jogo-da-semana")
     public ResponseEntity<GameDTO> buscarJogoDaSemana() {
         return gameService.buscarJogoDaSemana()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @GetMapping("/melhor-avaliado")
+    public ResponseEntity<TopRatedGameDTO> buscarMelhorAvaliado() throws Exception {
+        return reviewService.getTopRatedGame()
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
