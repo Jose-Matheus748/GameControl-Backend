@@ -3,6 +3,7 @@ package com.gamecontrol.service;
 import com.gamecontrol.dto.GameDTO;
 import com.gamecontrol.dto.GameReviewsPageDTO;
 import com.gamecontrol.dto.ReviewDTO;
+import com.gamecontrol.dto.TopRatedGameDTO;
 import com.gamecontrol.dto.request.CreateReviewRequest;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
@@ -11,8 +12,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -213,6 +216,87 @@ public class ReviewService {
         } catch (ExecutionException e) {
             throw new RuntimeException("Erro ao executar operação no Firestore", e);
         }
+    }
+
+    /** Mínimo de avaliações para um jogo entrar na disputa pelo "melhor avaliado". */
+    private static final int MINIMO_AVALIACOES_RANKING = 3;
+
+    /** Diferença de média (em pontos) considerada "praticamente empate". */
+    private static final double MARGEM_EMPATE_MEDIA = 0.2;
+
+    /** Dentro da margem de empate, quantas vezes mais avaliações o jogo precisa ter para ganhar. */
+    private static final double FATOR_MAIS_AVALIACOES = 2.0;
+
+    private record NotaDoJogo(String gameId, double media, int quantidade) {
+    }
+
+    /**
+     * Retorna o jogo com melhor avaliação segundo as reviews dos usuários do app.
+     * <p>Regras: só participam jogos com pelo menos {@link #MINIMO_AVALIACOES_RANKING} avaliações.
+     * Vence a maior média; porém, se a diferença entre duas médias for de até
+     * {@link #MARGEM_EMPATE_MEDIA}, vence o jogo com pelo menos {@link #FATOR_MAIS_AVALIACOES}
+     * vezes mais avaliações. Persistindo o empate, vence quem tem mais avaliações.
+     */
+    public Optional<TopRatedGameDTO> getTopRatedGame() throws Exception {
+        QuerySnapshot snapshot = firestore.collection(COLLECTION_NAME).get().get();
+
+        Map<String, double[]> acumulado = new HashMap<>();
+        for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+            String gameId = doc.getString("gameId");
+            Double rating = doc.getDouble("rating");
+            if (gameId == null || rating == null) {
+                continue;
+            }
+            double[] soma = acumulado.computeIfAbsent(gameId, k -> new double[2]);
+            soma[0] += rating;
+            soma[1] += 1;
+        }
+
+        NotaDoJogo melhor = null;
+        for (Map.Entry<String, double[]> entrada : acumulado.entrySet()) {
+            int quantidade = (int) entrada.getValue()[1];
+            if (quantidade < MINIMO_AVALIACOES_RANKING) {
+                continue;
+            }
+            NotaDoJogo candidato = new NotaDoJogo(
+                    entrada.getKey(),
+                    entrada.getValue()[0] / quantidade,
+                    quantidade
+            );
+            if (melhor == null || vence(candidato, melhor)) {
+                melhor = candidato;
+            }
+        }
+
+        if (melhor == null) {
+            return Optional.empty();
+        }
+
+        Optional<GameDTO> jogo = gameService.buscarJogoPorId(melhor.gameId());
+        if (jogo.isEmpty()) {
+            return Optional.empty();
+        }
+
+        double mediaArredondada = Math.round(melhor.media() * 10.0) / 10.0;
+        return Optional.of(new TopRatedGameDTO(jogo.get(), mediaArredondada, melhor.quantidade()));
+    }
+
+    private static boolean vence(NotaDoJogo candidato, NotaDoJogo atual) {
+        double diferenca = candidato.media() - atual.media();
+
+        if (Math.abs(diferenca) <= MARGEM_EMPATE_MEDIA) {
+            if (candidato.quantidade() >= atual.quantidade() * FATOR_MAIS_AVALIACOES) {
+                return true;
+            }
+            if (atual.quantidade() >= candidato.quantidade() * FATOR_MAIS_AVALIACOES) {
+                return false;
+            }
+        }
+
+        if (diferenca != 0) {
+            return diferenca > 0;
+        }
+        return candidato.quantidade() > atual.quantidade();
     }
 
     public GameReviewsPageDTO getReviewPage(String gameId, String userId) throws Exception {

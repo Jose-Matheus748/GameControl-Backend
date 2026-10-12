@@ -1,15 +1,14 @@
 package com.gamecontrol.controller;
 
-import com.gamecontrol.dto.AuthResponse;
-import com.gamecontrol.dto.request.ChangePasswordRequest;
-import com.gamecontrol.dto.request.CreateUserRequest;
-import com.gamecontrol.dto.request.LoginRequest;
-import com.gamecontrol.dto.request.RefreshTokenRequest;
 import com.gamecontrol.dto.UserDTO;
+import com.gamecontrol.dto.request.ChangePasswordRequest;
+import com.gamecontrol.dto.request.CreateUserProfileRequest;
 import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -37,20 +37,15 @@ public class UserController {
         return ResponseEntity.ok(userService.listarUsuarios());
     }
 
+    /**
+     * Cria o perfil de uma conta que já foi cadastrada no Firebase Authentication pelo cliente.
+     * O UID é obtido da autenticação validada, nunca do corpo da requisição.
+     */
     @PostMapping
-    public ResponseEntity<UserDTO> cadastrarUsuario(@Valid @RequestBody CreateUserRequest corpo) {
-        UserDTO criado = userService.cadastrarUsuario(corpo);
+    public ResponseEntity<UserDTO> cadastrarUsuario(@Valid @RequestBody CreateUserProfileRequest corpo) {
+        String uid = uidAutenticado();
+        UserDTO criado = userService.cadastrarUsuario(corpo, uid);
         return ResponseEntity.status(HttpStatus.CREATED).body(criado);
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest corpo) {
-        return ResponseEntity.ok(userService.login(corpo));
-    }
-
-    @PostMapping("/refresh-token")
-    public ResponseEntity<AuthResponse> renovarToken(@Valid @RequestBody RefreshTokenRequest corpo) {
-        return ResponseEntity.ok(userService.renovarToken(corpo));
     }
 
     @GetMapping("/{id}")
@@ -63,23 +58,9 @@ public class UserController {
             @PathVariable String id,
             @RequestBody UserDTO usuarioAtualizado
     ) {
+        garantirDono(id);
         UserDTO atualizado = userService.atualizarUsuario(id, usuarioAtualizado);
         return ResponseEntity.ok(atualizado);
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletarUsuario(@PathVariable String id) {
-        userService.deletarUsuario(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PutMapping("/{id}/change-password")
-    public ResponseEntity<Void> alterarSenha(
-            @PathVariable String id,
-            @Valid @RequestBody ChangePasswordRequest corpo
-    ) {
-        userService.alterarSenha(id, corpo);
-        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/profile-picture")
@@ -87,15 +68,39 @@ public class UserController {
             @PathVariable String id,
             @RequestBody Map<String, String> body
     ) {
+        garantirDono(id);
         String base64Image = body.get("profilePictureUrl");
         UserDTO atualizado = userService.atualizarFotoPerfil(id, base64Image);
         return ResponseEntity.ok(atualizado);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletarUsuario(@PathVariable String id) {
+        garantirDono(id);
+        userService.deletarUsuario(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Mantido temporariamente para compatibilidade. No fluxo final, prefira atualizar a senha
+     * diretamente pelo Firebase SDK do cliente, que trata a exigência de login recente.
+     */
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Void> alterarSenha(
+            @PathVariable String id,
+            @Valid @RequestBody ChangePasswordRequest corpo
+    ) {
+        garantirDono(id);
+        userService.alterarSenha(id, corpo);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{userId}/follow/{targetUserId}")
     public ResponseEntity<Void> follow(
             @PathVariable String userId,
-            @PathVariable String targetUserId) {
+            @PathVariable String targetUserId
+    ) {
+        garantirDono(userId);
         userService.followUser(userId, targetUserId);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -103,8 +108,31 @@ public class UserController {
     @DeleteMapping("/{userId}/follow/{targetUserId}")
     public ResponseEntity<Void> unfollow(
             @PathVariable String userId,
-            @PathVariable String targetUserId) {
+            @PathVariable String targetUserId
+    ) {
+        garantirDono(userId);
         userService.unfollowUser(userId, targetUserId);
         return ResponseEntity.noContent().build();
+    }
+
+    private String uidAutenticado() {
+        Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
+        if (autenticacao == null
+                || !autenticacao.isAuthenticated()
+                || autenticacao.getPrincipal() == null
+                || "anonymousUser".equals(autenticacao.getPrincipal())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Não autenticado.");
+        }
+        return autenticacao.getPrincipal().toString();
+    }
+
+    private void garantirDono(String id) {
+        String uidAutenticado = uidAutenticado();
+        if (!id.equals(uidAutenticado)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Você só pode alterar os seus próprios dados."
+            );
+        }
     }
 }

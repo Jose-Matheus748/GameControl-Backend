@@ -33,12 +33,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/error").permitAll()
-                            .requestMatchers(HttpMethod.POST,
-                                    "/api/users",
-                                    "/api/users/login",
-                                    "/api/users/refresh-token"
-                            ).permitAll()
-                            .requestMatchers(HttpMethod.DELETE, "/api/notifications/device-tokens").permitAll();
+                            // O cliente cria primeiro a conta no Firebase Auth; esta rota cria apenas o perfil.
+                            .requestMatchers(HttpMethod.POST, "/api/users").authenticated()
+                            .requestMatchers(HttpMethod.DELETE, "/api/notifications/device-tokens").authenticated();
                     if (autenticacaoObrigatoria) {
                         auth.anyRequest().authenticated();
                     } else {
