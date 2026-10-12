@@ -2,6 +2,7 @@ package com.gamecontrol.service;
 
 import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserProfileRequest;
+import com.gamecontrol.dto.NotificationPreferencesDTO;
 import com.gamecontrol.dto.UserDTO;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -247,11 +249,34 @@ public class UserService {
                 );
             }
 
-            referencia.update(
-                    "username", dadosAtualizados.getUsername(),
-                    "bio", dadosAtualizados.getBio(),
-                    "country", dadosAtualizados.getCountry()
-            ).get();
+            // Só altera o que veio na requisição: assim, atualizar apenas as
+            // preferências não apaga nome, bio nem país.
+            Map<String, Object> campos = new LinkedHashMap<>();
+            if (dadosAtualizados.getUsername() != null) {
+                campos.put("username", dadosAtualizados.getUsername());
+            }
+            if (dadosAtualizados.getBio() != null) {
+                campos.put("bio", dadosAtualizados.getBio());
+            }
+            if (dadosAtualizados.getCountry() != null) {
+                campos.put("country", dadosAtualizados.getCountry());
+            }
+            NotificationPreferencesDTO preferencias = dadosAtualizados.getNotificationPreferences();
+            if (preferencias != null) {
+                String base = UserFirestoreMapper.CAMPO_PREFERENCIAS_NOTIFICACAO + ".";
+                if (preferencias.getLikes() != null) {
+                    campos.put(base + "likes", preferencias.getLikes());
+                }
+                if (preferencias.getComments() != null) {
+                    campos.put(base + "comments", preferencias.getComments());
+                }
+                if (preferencias.getFollowers() != null) {
+                    campos.put(base + "followers", preferencias.getFollowers());
+                }
+            }
+            if (!campos.isEmpty()) {
+                referencia.update(campos).get();
+            }
 
             DocumentSnapshot atualizado = referencia.get().get();
 

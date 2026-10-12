@@ -3,6 +3,8 @@ package com.gamecontrol.service;
 import com.gamecontrol.dto.PostCommentDTO;
 import com.gamecontrol.dto.request.CreatePostCommentRequest;
 import com.google.cloud.firestore.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -11,18 +13,23 @@ import java.util.*;
 @Service
 public class PostCommentService {
 
+    private static final Logger log = LoggerFactory.getLogger(PostCommentService.class);
+
     private final Firestore firestore;
+    private final NotificationService notificationService;
     private final String commentsCollection;
     private final String usersCollection;
     private final String postsCollection;
 
     public PostCommentService(
             Firestore firestore,
+            NotificationService notificationService,
             @Value("${firebase.collection.postcomments}") String commentsCollection,
             @Value("${firebase.collection.users}") String usersCollection,
             @Value("${firebase.collection.posts}") String postsCollection
     ) {
         this.firestore = firestore;
+        this.notificationService = notificationService;
         this.commentsCollection = commentsCollection;
         this.usersCollection = usersCollection;
         this.postsCollection = postsCollection;
@@ -47,10 +54,33 @@ public class PostCommentService {
                     .get()
                     .get();
 
-            return PostCommentFirestoreMapper.paraDto(doc, userDoc.getString("username"));
+            String username = userDoc.getString("username");
+            notificarComentario(req, username);
+
+            return PostCommentFirestoreMapper.paraDto(doc, username);
 
         } catch (Exception e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    /** Falha aqui não pode desfazer o comentário, que já foi gravado. */
+    private void notificarComentario(CreatePostCommentRequest req, String commenterUsername) {
+        try {
+            DocumentSnapshot post = firestore.collection(postsCollection)
+                    .document(req.getPostId())
+                    .get()
+                    .get();
+            String donoId = post.getString("userId");
+            if (donoId == null || donoId.equals(req.getUserId())) {
+                return;
+            }
+            notificationService.notificarComentario(
+                    req.getUserId(), commenterUsername, donoId, req.getPostId(), req.getContent());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Não foi possível notificar comentário no post {}: {}", req.getPostId(), e.getMessage());
         }
     }
 

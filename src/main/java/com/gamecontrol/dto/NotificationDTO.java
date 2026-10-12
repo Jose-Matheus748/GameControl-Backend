@@ -14,6 +14,8 @@ public class NotificationDTO {
     /** Usuário que gerou o evento (ex.: quem começou a seguir). */
     private String actorId;
     private String actorUsername;
+    /** Post relacionado (curtida/comentário). Nulo para novo seguidor. */
+    private String postId;
     private NotificationType type;
     private String message;
     private boolean read;

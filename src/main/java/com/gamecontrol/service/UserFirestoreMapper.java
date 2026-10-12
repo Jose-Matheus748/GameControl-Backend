@@ -1,5 +1,6 @@
 package com.gamecontrol.service;
 
+import com.gamecontrol.dto.NotificationPreferencesDTO;
 import com.gamecontrol.dto.UserDTO;
 import com.gamecontrol.dto.request.CreateUserProfileRequest;
 import com.gamecontrol.enums.Role;
@@ -16,6 +17,9 @@ import java.util.Locale;
 import java.util.Map;
 
 final class UserFirestoreMapper {
+
+    /** Campo do documento do usuário com as preferências (mapa likes/comments/followers). */
+    static final String CAMPO_PREFERENCIAS_NOTIFICACAO = "notificationPreferences";
 
     private UserFirestoreMapper() {
     }
@@ -64,8 +68,29 @@ final class UserFirestoreMapper {
         dto.setRole(lerPapel(documento));
         dto.setFollowers(lerListaIds(documento, "followers"));
         dto.setFollowing(lerListaIds(documento, "following"));
+        dto.setNotificationPreferences(lerPreferenciasNotificacao(documento));
 
         return dto;
+    }
+
+    static NotificationPreferencesDTO lerPreferenciasNotificacao(DocumentSnapshot documento) {
+        NotificationPreferencesDTO preferencias = new NotificationPreferencesDTO();
+        preferencias.setLikes(notificacaoAtiva(documento, "likes"));
+        preferencias.setComments(notificacaoAtiva(documento, "comments"));
+        preferencias.setFollowers(notificacaoAtiva(documento, "followers"));
+        return preferencias;
+    }
+
+    /**
+     * Preferência ausente conta como ativa: quem nunca abriu as configurações
+     * continua recebendo tudo, como antes.
+     */
+    static boolean notificacaoAtiva(DocumentSnapshot documento, String chave) {
+        if (documento == null || !documento.exists()) {
+            return true;
+        }
+        Object valor = documento.get(CAMPO_PREFERENCIAS_NOTIFICACAO + "." + chave);
+        return !(valor instanceof Boolean ativa) || ativa;
     }
 
     private static LocalDate lerDataNascimento(DocumentSnapshot documento) {

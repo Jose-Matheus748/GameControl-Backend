@@ -24,4 +24,5 @@ public class UserDTO {
     private List<String> followers = new ArrayList<>();
     /** IDs de usuários que este perfil segue. */
     private List<String> following = new ArrayList<>();
+    private NotificationPreferencesDTO notificationPreferences;
 }
