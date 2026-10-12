@@ -18,12 +18,16 @@ final class NotificationFirestoreMapper {
             String actorId,
             String actorUsername,
             NotificationType type,
-            String message
+            String message,
+            String postId
     ) {
         Map<String, Object> dados = new LinkedHashMap<>();
         dados.put("recipientId", recipientId);
         dados.put("actorId", actorId);
         dados.put("actorUsername", actorUsername);
+        if (postId != null) {
+            dados.put("postId", postId);
+        }
         dados.put("type", type.name());
         dados.put("message", message);
         dados.put("read", false);
@@ -37,6 +41,7 @@ final class NotificationFirestoreMapper {
         dto.setRecipientId(documento.getString("recipientId"));
         dto.setActorId(documento.getString("actorId"));
         dto.setActorUsername(documento.getString("actorUsername"));
+        dto.setPostId(documento.getString("postId"));
         dto.setType(lerTipo(documento));
         dto.setMessage(documento.getString("message"));
         dto.setRead(Boolean.TRUE.equals(documento.getBoolean("read")));
