@@ -4,6 +4,7 @@ import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserProfileRequest;
 import com.gamecontrol.dto.NotificationPreferencesDTO;
 import com.gamecontrol.dto.UserDTO;
+import com.gamecontrol.enums.FollowResult;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
@@ -15,6 +16,8 @@ import com.google.firebase.auth.AuthErrorCode;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.UserRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,19 +32,24 @@ import java.util.concurrent.ExecutionException;
 @Service
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final Firestore firestore;
     private final String nomeColecaoUsuarios;
     private final NotificationService notificationService;
+    private final FollowRequestService followRequestService;
     private final FirebaseAuth firebaseAuth;
 
     public UserService(
             Firestore firestore,
             NotificationService notificationService,
+            FollowRequestService followRequestService,
             FirebaseAuth firebaseAuth,
             @Value("${firebase.collection.users}") String nomeColecaoUsuarios
     ) {
         this.firestore = firestore;
         this.notificationService = notificationService;
+        this.followRequestService = followRequestService;
         this.firebaseAuth = firebaseAuth;
         this.nomeColecaoUsuarios = nomeColecaoUsuarios;
     }
@@ -190,6 +198,12 @@ public class UserService {
             batch.commit().get();
 
             try {
+                followRequestService.removerTodosDoUsuario(id);
+            } catch (RuntimeException e) {
+                log.warn("Não foi possível limpar os pedidos para seguir de {}: {}", id, e.getMessage());
+            }
+
+            try {
                 firebaseAuth.deleteUser(id);
             } catch (FirebaseAuthException e) {
                 if (e.getAuthErrorCode() != AuthErrorCode.USER_NOT_FOUND) {
@@ -274,8 +288,19 @@ public class UserService {
                     campos.put(base + "followers", preferencias.getFollowers());
                 }
             }
+            Boolean novoPrivado = dadosAtualizados.getIsPrivate();
+            if (novoPrivado != null) {
+                campos.put(UserFirestoreMapper.CAMPO_PERFIL_PRIVADO, novoPrivado);
+            }
+            boolean eraPrivado = UserFirestoreMapper.perfilPrivado(documento);
+
             if (!campos.isEmpty()) {
                 referencia.update(campos).get();
+            }
+
+            // Perfil que deixa de ser privado: os pedidos pendentes são aceitos.
+            if (eraPrivado && Boolean.FALSE.equals(novoPrivado)) {
+                followRequestService.aceitarTodosPendentes(id);
             }
 
             DocumentSnapshot atualizado = referencia.get().get();
@@ -323,7 +348,7 @@ public class UserService {
     /**
      * {@code followerId} passa a seguir {@code followedId}: atualiza arrays {@code following} / {@code followers} nos docs de usuário.
      */
-    public void followUser(String followerId, String followedId) {
+    public FollowResult followUser(String followerId, String followedId) {
         if (followerId == null || followedId == null
                 || followerId.isBlank() || followedId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ids inválidos.");
@@ -345,6 +370,12 @@ public class UserService {
             List<String> seguidoresAtuais = UserFirestoreMapper.lerListaIds(snapFollowed, "followers");
             boolean jaSeguia = seguidoresAtuais.contains(f);
 
+            // Perfil privado: em vez de seguir direto, fica um pedido pendente de aprovação.
+            if (!jaSeguia && UserFirestoreMapper.perfilPrivado(snapFollowed)) {
+                followRequestService.solicitar(f, snapFollower.getString("username"), d);
+                return FollowResult.REQUESTED;
+            }
+
             WriteBatch batch = firestore.batch();
             batch.update(refFollower, "following", FieldValue.arrayUnion(d));
             batch.update(refFollowed, "followers", FieldValue.arrayUnion(f));
@@ -353,6 +384,7 @@ public class UserService {
             if (!jaSeguia) {
                 notificationService.notificarNovoSeguidor(f, snapFollower.getString("username"), d);
             }
+            return FollowResult.FOLLOWING;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Operação interrompida.", e);
@@ -387,6 +419,9 @@ public class UserService {
             batch.update(refFollower, "following", FieldValue.arrayRemove(d));
             batch.update(refFollowed, "followers", FieldValue.arrayRemove(f));
             batch.commit().get();
+
+            // Se havia um pedido pendente, deixar de seguir também cancela o pedido.
+            followRequestService.cancelarPendente(f, d);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Operação interrompida.", e);

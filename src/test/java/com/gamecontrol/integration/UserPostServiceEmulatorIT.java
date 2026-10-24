@@ -3,6 +3,7 @@ package com.gamecontrol.integration;
 import com.gamecontrol.dto.UserPostDTO;
 import com.gamecontrol.dto.request.CreateUserPostRequest;
 import com.gamecontrol.service.NotificationService;
+import com.gamecontrol.service.ProfilePrivacyService;
 import com.gamecontrol.service.UserPostService;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.Firestore;
@@ -61,9 +62,11 @@ class UserPostServiceEmulatorIT {
                 .getService();
 
         NotificationService notificationServiceMock = mock(NotificationService.class);
+        ProfilePrivacyService privacyService = new ProfilePrivacyService(firestore, USERS_COLLECTION);
         userPostService = new UserPostService(
                 firestore,
                 notificationServiceMock,
+                privacyService,
                 POSTS_COLLECTION,
                 USERS_COLLECTION
         );
@@ -112,7 +115,7 @@ class UserPostServiceEmulatorIT {
         assertThat(created.getText()).isEqualTo("Post criado via Firestore Emulator");
         assertThat(created.getLikedUserIds()).isEmpty();
 
-        List<UserPostDTO> posts = userPostService.getPostsByUser(userId);
+        List<UserPostDTO> posts = userPostService.getPostsByUser(userId, userId);
         assertThat(posts).extracting(UserPostDTO::getId).contains(created.getId());
     }
 
@@ -128,7 +131,7 @@ class UserPostServiceEmulatorIT {
         createdDocs.add(firestore.collection(POSTS_COLLECTION).document(created.getId()));
 
         userPostService.toggleLike(created.getId(), likerId);
-        List<UserPostDTO> afterLike = userPostService.getPostsByUser(authorId);
+        List<UserPostDTO> afterLike = userPostService.getPostsByUser(authorId, authorId);
         UserPostDTO likedPost = afterLike.stream()
                 .filter(p -> p.getId().equals(created.getId()))
                 .findFirst()
@@ -136,7 +139,7 @@ class UserPostServiceEmulatorIT {
         assertThat(likedPost.getLikedUserIds()).containsExactly(likerId);
 
         userPostService.toggleLike(created.getId(), likerId);
-        List<UserPostDTO> afterUnlike = userPostService.getPostsByUser(authorId);
+        List<UserPostDTO> afterUnlike = userPostService.getPostsByUser(authorId, authorId);
         UserPostDTO unlikedPost = afterUnlike.stream()
                 .filter(p -> p.getId().equals(created.getId()))
                 .findFirst()
@@ -155,7 +158,7 @@ class UserPostServiceEmulatorIT {
 
         userPostService.deletePost(created.getId());
 
-        List<UserPostDTO> posts = userPostService.getPostsByUser(userId);
+        List<UserPostDTO> posts = userPostService.getPostsByUser(userId, userId);
         assertThat(posts).extracting(UserPostDTO::getId).doesNotContain(created.getId());
     }
 }
