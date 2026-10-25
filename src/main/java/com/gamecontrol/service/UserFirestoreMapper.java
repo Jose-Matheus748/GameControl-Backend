@@ -21,6 +21,9 @@ final class UserFirestoreMapper {
     /** Campo do documento do usuário com as preferências (mapa likes/comments/followers). */
     static final String CAMPO_PREFERENCIAS_NOTIFICACAO = "notificationPreferences";
 
+    /** Campo booleano do documento do usuário: true = perfil privado. Ausente = público. */
+    static final String CAMPO_PERFIL_PRIVADO = "isPrivate";
+
     private UserFirestoreMapper() {
     }
 
@@ -49,6 +52,7 @@ final class UserFirestoreMapper {
 
         // O papel inicial é definido pelo servidor; o cliente não escolhe role.
         dados.put("role", Role.USER.name());
+        dados.put(CAMPO_PERFIL_PRIVADO, false);
         dados.put("followers", new ArrayList<String>());
         dados.put("following", new ArrayList<String>());
 
@@ -69,8 +73,32 @@ final class UserFirestoreMapper {
         dto.setFollowers(lerListaIds(documento, "followers"));
         dto.setFollowing(lerListaIds(documento, "following"));
         dto.setNotificationPreferences(lerPreferenciasNotificacao(documento));
+        dto.setIsPrivate(perfilPrivado(documento));
 
         return dto;
+    }
+
+    /** Perfil privado? Campo ausente (usuários antigos) conta como público. */
+    static boolean perfilPrivado(DocumentSnapshot documento) {
+        if (documento == null || !documento.exists()) {
+            return false;
+        }
+        return documento.get(CAMPO_PERFIL_PRIVADO) instanceof Boolean privado && privado;
+    }
+
+    /**
+     * Regra única de visibilidade de posts e playlists do {@code dono}:
+     * público = todos; privado = o próprio dono e quem o segue. {@code viewerId} nulo = anônimo.
+     * Dono inexistente não restringe nada.
+     */
+    static boolean podeVerConteudo(DocumentSnapshot dono, String viewerId) {
+        if (dono == null || !dono.exists() || !perfilPrivado(dono)) {
+            return true;
+        }
+        if (viewerId == null || viewerId.isBlank()) {
+            return false;
+        }
+        return viewerId.equals(dono.getId()) || lerListaIds(dono, "followers").contains(viewerId);
     }
 
     static NotificationPreferencesDTO lerPreferenciasNotificacao(DocumentSnapshot documento) {

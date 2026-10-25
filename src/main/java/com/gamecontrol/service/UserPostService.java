@@ -17,17 +17,20 @@ public class UserPostService {
 
     private final Firestore firestore;
     private final NotificationService notificationService;
+    private final ProfilePrivacyService privacyService;
     private final String postsCollection;
     private final String usersCollection;
 
     public UserPostService(
             Firestore firestore,
             NotificationService notificationService,
+            ProfilePrivacyService privacyService,
             @Value("${firebase.collection.posts}") String postsCollection,
             @Value("${firebase.collection.users}") String usersCollection
     ) {
         this.firestore = firestore;
         this.notificationService = notificationService;
+        this.privacyService = privacyService;
         this.postsCollection = postsCollection;
         this.usersCollection = usersCollection;
     }
@@ -57,27 +60,30 @@ public class UserPostService {
         }
     }
 
-    public List<UserPostDTO> getAllPosts() {
+    /** Feed geral: posts de perfis privados só aparecem para quem segue (e para o próprio dono). */
+    public List<UserPostDTO> getAllPosts(String viewerId) {
         try {
             QuerySnapshot resultado = firestore.collection(postsCollection)
                     .get()
                     .get();
 
-            return montarLista(resultado);
+            return montarLista(resultado, viewerId);
 
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }
 
-    public List<UserPostDTO> getPostsByUser(String userId) {
+    /** Posts de um perfil. Perfil privado visto por quem não segue: 403. */
+    public List<UserPostDTO> getPostsByUser(String userId, String viewerId) {
+        privacyService.exigirAcesso(userId, viewerId);
         try {
             QuerySnapshot resultado = firestore.collection(postsCollection)
                     .whereEqualTo("userId", userId)
                     .get()
                     .get();
 
-            return montarLista(resultado);
+            return montarLista(resultado, viewerId);
 
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -90,7 +96,7 @@ public class UserPostService {
                 .delete();
     }
 
-    private List<UserPostDTO> montarLista(QuerySnapshot resultado) throws Exception {
+    private List<UserPostDTO> montarLista(QuerySnapshot resultado, String viewerId) throws Exception {
         List<UserPostDTO> lista = new ArrayList<>();
 
         for (DocumentSnapshot doc : resultado.getDocuments()) {
@@ -100,6 +106,10 @@ public class UserPostService {
                     .document(userId)
                     .get()
                     .get();
+
+            if (!UserFirestoreMapper.podeVerConteudo(userDoc, viewerId)) {
+                continue;
+            }
 
             lista.add(UserPostFirestoreMapper.paraDto(
                     doc,

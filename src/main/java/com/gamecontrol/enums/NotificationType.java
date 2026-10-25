@@ -8,5 +8,7 @@ package com.gamecontrol.enums;
 public enum NotificationType {
     NEW_FOLLOWER,
     POST_LIKED,
-    POST_COMMENTED
+    POST_COMMENTED,
+    FOLLOW_REQUEST,
+    FOLLOW_REQUEST_ACCEPTED
 }

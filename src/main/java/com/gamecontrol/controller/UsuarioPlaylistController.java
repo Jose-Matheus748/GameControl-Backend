@@ -1,5 +1,6 @@
 package com.gamecontrol.controller;
 
+import com.gamecontrol.config.AuthContext;
 import com.gamecontrol.dto.request.CreatePlaylistRequest;
 import com.gamecontrol.dto.UsuarioPlayListDTO;
 import com.gamecontrol.service.UsuarioPlaylistService;
@@ -37,12 +38,12 @@ public class UsuarioPlaylistController {
     public ResponseEntity<List<UsuarioPlayListDTO>> listarPlaylistsPorUsuario(
             @PathVariable String usuarioId,
             @RequestParam(defaultValue = "false") boolean incluirJogos) {
-        return ResponseEntity.ok(usuarioPlaylistService.listarPlaylistsPorUsuario(usuarioId, incluirJogos));
+        return ResponseEntity.ok(usuarioPlaylistService.listarPlaylistsPorUsuario(usuarioId, incluirJogos, AuthContext.uidOuNulo()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioPlayListDTO> buscarPlaylistPorID(@PathVariable String id) {
-        return usuarioPlaylistService.buscarPlaylistPorID(id)
+        return usuarioPlaylistService.buscarPlaylistPorID(id, AuthContext.uidOuNulo())
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

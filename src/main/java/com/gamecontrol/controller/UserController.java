@@ -1,8 +1,12 @@
 package com.gamecontrol.controller;
 
+import com.gamecontrol.dto.request.FollowRequestDTO;
+import com.gamecontrol.dto.FollowStatusDTO;
 import com.gamecontrol.dto.UserDTO;
 import com.gamecontrol.dto.request.ChangePasswordRequest;
 import com.gamecontrol.dto.request.CreateUserProfileRequest;
+import com.gamecontrol.enums.FollowResult;
+import com.gamecontrol.service.FollowRequestService;
 import com.gamecontrol.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -27,9 +31,11 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final FollowRequestService followRequestService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, FollowRequestService followRequestService) {
         this.userService = userService;
+        this.followRequestService = followRequestService;
     }
 
     @GetMapping
@@ -95,14 +101,58 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 201 = passou a seguir. 202 = o perfil é privado e ficou um pedido pendente
+     * (corpo: {"status":"REQUESTED"}). 429 = pedido recusado há pouco, aguarde para tentar de novo.
+     */
     @PostMapping("/{userId}/follow/{targetUserId}")
-    public ResponseEntity<Void> follow(
+    public ResponseEntity<?> follow(
             @PathVariable String userId,
             @PathVariable String targetUserId
     ) {
         garantirDono(userId);
-        userService.followUser(userId, targetUserId);
+        FollowResult resultado = userService.followUser(userId, targetUserId);
+        if (resultado == FollowResult.REQUESTED) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("status", "REQUESTED"));
+        }
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    /** Relação de {@code userId} com {@code targetUserId}: FOLLOWING, REQUESTED ou NONE. */
+    @GetMapping("/{userId}/follow-status/{targetUserId}")
+    public ResponseEntity<FollowStatusDTO> statusSeguir(
+            @PathVariable String userId,
+            @PathVariable String targetUserId
+    ) {
+        garantirDono(userId);
+        return ResponseEntity.ok(followRequestService.status(userId, targetUserId));
+    }
+
+    /** Pedidos para seguir pendentes recebidos por este usuário (perfil privado). */
+    @GetMapping("/{userId}/follow-requests")
+    public ResponseEntity<List<FollowRequestDTO>> listarPedidos(@PathVariable String userId) {
+        garantirDono(userId);
+        return ResponseEntity.ok(followRequestService.listarRecebidas(userId));
+    }
+
+    @PostMapping("/{userId}/follow-requests/{requesterId}/accept")
+    public ResponseEntity<Void> aceitarPedido(
+            @PathVariable String userId,
+            @PathVariable String requesterId
+    ) {
+        garantirDono(userId);
+        followRequestService.aceitar(userId, requesterId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{userId}/follow-requests/{requesterId}/reject")
+    public ResponseEntity<Void> recusarPedido(
+            @PathVariable String userId,
+            @PathVariable String requesterId
+    ) {
+        garantirDono(userId);
+        followRequestService.recusar(userId, requesterId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{userId}/follow/{targetUserId}")

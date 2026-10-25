@@ -25,4 +25,9 @@ public class UserDTO {
     /** IDs de usuários que este perfil segue. */
     private List<String> following = new ArrayList<>();
     private NotificationPreferencesDTO notificationPreferences;
+    /**
+     * Perfil privado: posts e playlists só aparecem para quem segue. Reviews continuam públicas.
+     * É {@code Boolean} (e não {@code boolean}) de propósito: assim o JSON usa o nome "isPrivate".
+     */
+    private Boolean isPrivate;
 }

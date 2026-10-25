@@ -22,15 +22,18 @@ public class UsuarioPlaylistService {
     private final Firestore firestore;
     private final String colecao;
     private final GameService gameService;
+    private final ProfilePrivacyService privacyService;
 
     public UsuarioPlaylistService(
             Firestore firestore,
             @Value("${firebase.collection.playlists}") String colecao,
-            GameService gameService
+            GameService gameService,
+            ProfilePrivacyService privacyService
     ) {
         this.firestore = firestore;
         this.colecao = colecao;
         this.gameService = gameService;
+        this.privacyService = privacyService;
     }
 
     public UsuarioPlayListDTO criarPlaylist(String usuarioIdAutenticado, CreatePlaylistRequest request) {
@@ -51,7 +54,10 @@ public class UsuarioPlaylistService {
         });
     }
 
-    public List<UsuarioPlayListDTO> listarPlaylistsPorUsuario(String usuarioId, boolean incluirJogos) {
+    /** Playlists de um perfil. Perfil privado visto por quem não segue: 403. */
+    public List<UsuarioPlayListDTO> listarPlaylistsPorUsuario(String usuarioId, boolean incluirJogos, String viewerId) {
+        // Fora do executar(): ele converteria o 403 em erro genérico.
+        privacyService.exigirAcesso(usuarioId, viewerId);
         List<UsuarioPlayListDTO> playlists = executar(() -> {
             QuerySnapshot resultado = firestore.collection(colecao)
                     .whereEqualTo("usuarioId", usuarioId)
@@ -68,11 +74,16 @@ public class UsuarioPlaylistService {
         return playlists;
     }
 
-    public Optional<UsuarioPlayListDTO> buscarPlaylistPorID(String id) {
-        return executar(() -> {
+    /** Uma playlist. Se o dono tem perfil privado e quem pede não o segue: 403. */
+    public Optional<UsuarioPlayListDTO> buscarPlaylistPorID(String id, String viewerId) {
+        Optional<UsuarioPlayListDTO> playlist = executar(() -> {
             DocumentSnapshot doc = firestore.collection(colecao).document(id).get().get();
-            return doc.exists() ? Optional.of(comJogos(PlaylistFirestoreMapper.fromSnapshot(doc))) : Optional.empty();
+            return doc.exists() ? Optional.of(PlaylistFirestoreMapper.fromSnapshot(doc)) : Optional.<UsuarioPlayListDTO>empty();
         });
+        // Fora do executar(): ele converteria o 403 em erro genérico.
+        playlist.ifPresent(p -> privacyService.exigirAcesso(p.getUsuarioId(), viewerId));
+        playlist.ifPresent(this::comJogos);
+        return playlist;
     }
 
     public UsuarioPlayListDTO atualizarPlaylist(String id, UsuarioPlayListDTO dto) {

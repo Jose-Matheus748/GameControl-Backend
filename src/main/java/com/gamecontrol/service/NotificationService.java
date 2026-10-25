@@ -94,6 +94,55 @@ public class NotificationService {
     }
 
     /**
+     * Chamado quando {@code requesterId} pede para seguir o perfil privado {@code targetId}.
+     * O pedido aparece na aba de notificações do dono do perfil.
+     */
+    public void notificarPedidoSeguir(String requesterId, String requesterUsername, String targetId) {
+        String nome = nomeOuPadrao(requesterUsername);
+        notificar(targetId, requesterId, nome, NotificationType.FOLLOW_REQUEST,
+                "Pedido para seguir", nome + " quer seguir você.", null);
+    }
+
+    /**
+     * Chamado quando {@code ownerId} aceita o pedido de {@code requesterId}.
+     * O destinatário é quem pediu; o ator é o dono do perfil.
+     */
+    public void notificarPedidoAceito(String ownerId, String ownerUsername, String requesterId) {
+        String nome = nomeOuPadrao(ownerUsername);
+        notificar(requesterId, ownerId, nome, NotificationType.FOLLOW_REQUEST_ACCEPTED,
+                "Pedido aceito", nome + " aceitou seu pedido para seguir.", null);
+    }
+
+    /**
+     * Apaga a notificação de pedido (FOLLOW_REQUEST) já respondida ou cancelada, para o app
+     * não continuar mostrando um pedido que não existe mais. Nunca lança exceção.
+     */
+    public void removerNotificacaoPedido(String ownerId, String requesterId) {
+        try {
+            QuerySnapshot pedidos = firestore.collection(nomeColecaoNotificacoes)
+                    .whereEqualTo("recipientId", ownerId)
+                    .whereEqualTo("actorId", requesterId)
+                    .whereEqualTo("type", NotificationType.FOLLOW_REQUEST.name())
+                    .get()
+                    .get();
+            if (pedidos.isEmpty()) {
+                return;
+            }
+            WriteBatch batch = firestore.batch();
+            for (QueryDocumentSnapshot documento : pedidos.getDocuments()) {
+                batch.delete(documento.getReference());
+            }
+            batch.commit().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrompido ao remover notificação de pedido para seguir.");
+        } catch (Exception e) {
+            log.warn("Não foi possível remover a notificação do pedido de {} para {}: {}",
+                    requesterId, ownerId, e.getMessage());
+        }
+    }
+
+    /**
      * Fluxo comum: grava no histórico e dispara o push. Nunca lança exceção,
      * porque a ação que originou o evento (seguir, curtir...) já foi concluída.
      */
@@ -154,7 +203,7 @@ public class NotificationService {
     /** Chave, em {@code notificationPreferences}, que controla cada tipo. */
     private static String chavePreferencia(NotificationType type) {
         return switch (type) {
-            case NEW_FOLLOWER -> "followers";
+            case NEW_FOLLOWER, FOLLOW_REQUEST, FOLLOW_REQUEST_ACCEPTED -> "followers";
             case POST_LIKED -> "likes";
             case POST_COMMENTED -> "comments";
         };

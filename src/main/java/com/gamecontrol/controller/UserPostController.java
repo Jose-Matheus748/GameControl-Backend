@@ -1,5 +1,6 @@
 package com.gamecontrol.controller;
 
+import com.gamecontrol.config.AuthContext;
 import com.gamecontrol.dto.UserPostDTO;
 import com.gamecontrol.dto.request.CreateUserPostRequest;
 import com.gamecontrol.service.UserPostService;
@@ -24,12 +25,12 @@ public class UserPostController {
 
     @GetMapping
     public List<UserPostDTO> getAll() {
-        return service.getAllPosts();
+        return service.getAllPosts(AuthContext.uidOuNulo());
     }
 
     @GetMapping("/user/{userId}")
     public List<UserPostDTO> getByUser(@PathVariable String userId) {
-        return service.getPostsByUser(userId);
+        return service.getPostsByUser(userId, AuthContext.uidOuNulo());
     }
 
     @DeleteMapping("/{id}")
