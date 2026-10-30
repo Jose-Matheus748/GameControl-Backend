@@ -1,8 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Todo acesso ao Firestore passa pela API (Admin SDK, que ignora estas regras).
+    // Clientes (mobile/web) usam o Firebase apenas para autenticação, então
+    // nenhuma leitura ou escrita direta é permitida.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

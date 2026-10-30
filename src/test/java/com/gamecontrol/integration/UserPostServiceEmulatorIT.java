@@ -12,12 +12,15 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -156,9 +159,46 @@ class UserPostServiceEmulatorIT {
         req.setText("Post que será excluído");
         UserPostDTO created = userPostService.createPost(req);
 
-        userPostService.deletePost(created.getId());
+        userPostService.deletePost(created.getId(), userId);
 
         List<UserPostDTO> posts = userPostService.getPostsByUser(userId, userId);
         assertThat(posts).extracting(UserPostDTO::getId).doesNotContain(created.getId());
+    }
+
+    @Test
+    void naoPermiteApagarPostDeOutroUsuario() throws Exception {
+        String donoId = createUser("Dono");
+        String intrusoId = createUser("Intruso");
+
+        CreateUserPostRequest req = new CreateUserPostRequest();
+        req.setUserId(donoId);
+        req.setText("Post protegido");
+        UserPostDTO created = userPostService.createPost(req);
+        createdDocs.add(firestore.collection(POSTS_COLLECTION).document(created.getId()));
+
+        assertThatThrownBy(() -> userPostService.deletePost(created.getId(), intrusoId))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+        List<UserPostDTO> posts = userPostService.getPostsByUser(donoId, donoId);
+        assertThat(posts).extracting(UserPostDTO::getId).contains(created.getId());
+    }
+
+    @Test
+    void apagarPostInexistenteRetorna404() throws Exception {
+        String userId = createUser("Qualquer");
+
+        assertThatThrownBy(() -> userPostService.deletePost("post-que-nao-existe", userId))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void curtirPostInexistenteRetorna404() throws Exception {
+        String userId = createUser("Curtidor");
+
+        assertThatThrownBy(() -> userPostService.toggleLike("post-que-nao-existe", userId))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

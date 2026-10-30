@@ -230,13 +230,6 @@ public class ReviewService {
     private record NotaDoJogo(String gameId, double media, int quantidade) {
     }
 
-    /**
-     * Retorna o jogo com melhor avaliação segundo as reviews dos usuários do app.
-     * <p>Regras: só participam jogos com pelo menos {@link #MINIMO_AVALIACOES_RANKING} avaliações.
-     * Vence a maior média; porém, se a diferença entre duas médias for de até
-     * {@link #MARGEM_EMPATE_MEDIA}, vence o jogo com pelo menos {@link #FATOR_MAIS_AVALIACOES}
-     * vezes mais avaliações. Persistindo o empate, vence quem tem mais avaliações.
-     */
     public Optional<TopRatedGameDTO> getTopRatedGame() throws Exception {
         QuerySnapshot snapshot = firestore.collection(COLLECTION_NAME).get().get();
 

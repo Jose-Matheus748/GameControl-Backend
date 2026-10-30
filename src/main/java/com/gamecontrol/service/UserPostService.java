@@ -142,10 +142,35 @@ public class UserPostService {
         }
     }
 
-    public void deletePost(String postId) {
-        firestore.collection(postsCollection)
-                .document(postId)
-                .delete();
+    /**
+     * Apaga o post somente se {@code requesterId} for o dono.
+     * 404 se o post não existe; 403 se pertence a outro usuário.
+     */
+    public void deletePost(String postId, String requesterId) {
+        try {
+            DocumentReference ref = firestore.collection(postsCollection).document(postId);
+            DocumentSnapshot doc = ref.get().get();
+
+            if (!doc.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Post não encontrado.");
+            }
+            if (requesterId == null || !requesterId.equals(doc.getString("userId"))) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Você só pode excluir os seus próprios posts."
+                );
+            }
+
+            ref.delete().get();
+
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private List<UserPostDTO> montarLista(QuerySnapshot resultado, String viewerId) throws Exception {
@@ -173,6 +198,7 @@ public class UserPostService {
         return lista;
     }
 
+    /** {@code userId} deve ser o uid do token (nunca um valor enviado pelo cliente). */
     public void toggleLike(String postId, String userId) {
         try {
 
@@ -181,6 +207,10 @@ public class UserPostService {
                             .document(postId);
 
             DocumentSnapshot doc = ref.get().get();
+
+            if (!doc.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Post não encontrado.");
+            }
 
             List<String> likes =
                     (List<String>) doc.get("likedUserIds");
@@ -203,6 +233,8 @@ public class UserPostService {
                 notificarCurtida(doc, postId, userId);
             }
 
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
