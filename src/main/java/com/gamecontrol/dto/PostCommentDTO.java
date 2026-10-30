@@ -13,4 +13,5 @@ public class PostCommentDTO {
     private String postId;
     private String content;
     private String createdAt;
+    private boolean edited;
 }

@@ -28,6 +28,7 @@ final class PostCommentFirestoreMapper {
         dto.setPostId(doc.getString("postId"));
         dto.setContent(doc.getString("content"));
         dto.setCreatedAt(doc.getString("createdAt"));
+        dto.setEdited(Boolean.TRUE.equals(doc.getBoolean("edited")));
         dto.setUsername(username);
         return dto;
     }

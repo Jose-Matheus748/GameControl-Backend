@@ -2,11 +2,14 @@ package com.gamecontrol.service;
 
 import com.gamecontrol.dto.UserPostDTO;
 import com.gamecontrol.dto.request.CreateUserPostRequest;
+import com.gamecontrol.dto.request.UpdateUserPostRequest;
 import com.google.cloud.firestore.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -85,6 +88,55 @@ public class UserPostService {
 
             return montarLista(resultado, viewerId);
 
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Edita o texto de um post e marca {@code edited = true} (sem guardar data da edição).
+     * 401 se anônimo, 404 se o post não existe, 403 se quem pede não é o autor.
+     */
+    public UserPostDTO updatePost(String postId, UpdateUserPostRequest req, String uid) {
+        if (uid == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Autenticação necessária.");
+        }
+        if (req.getText() == null || req.getText().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O texto do post não pode ser vazio.");
+        }
+        try {
+            DocumentReference ref = firestore.collection(postsCollection).document(postId);
+            DocumentSnapshot atual = ref.get().get();
+
+            if (!atual.exists()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Post não encontrado.");
+            }
+            if (!uid.equals(atual.getString("userId"))) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Só o autor pode editar este post.");
+            }
+
+            Map<String, Object> alteracoes = new HashMap<>();
+            alteracoes.put("text", req.getText());
+            alteracoes.put("edited", true);
+            ref.update(alteracoes).get();
+
+            DocumentSnapshot doc = ref.get().get();
+            DocumentSnapshot userDoc = firestore.collection(usersCollection)
+                    .document(uid)
+                    .get()
+                    .get();
+
+            return UserPostFirestoreMapper.paraDto(
+                    doc,
+                    userDoc.getString("username"),
+                    userDoc.getString("profilePictureUrl")
+            );
+
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
