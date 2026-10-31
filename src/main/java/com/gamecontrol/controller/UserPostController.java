@@ -41,19 +41,16 @@ public class UserPostController {
             @PathVariable String id,
             @Valid @RequestBody UpdateUserPostRequest req
     ) {
-        return service.updatePost(id, req, AuthContext.uidOuNulo());
+        return service.updatePost(id, req, AuthContext.uidObrigatorio());
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String id) {
-        service.deletePost(id);
+        service.deletePost(id, AuthContext.uidObrigatorio());
     }
 
-    @PostMapping("/{postId}/like/{userId}")
-    public void toggleLike(
-            @PathVariable String postId,
-            @PathVariable String userId
-    ) {
-        service.toggleLike(postId, userId);
+    @PostMapping("/{postId}/like")
+    public void toggleLike(@PathVariable String postId) {
+        service.toggleLike(postId, AuthContext.uidObrigatorio());
     }
 }
