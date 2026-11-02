@@ -9,6 +9,8 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -57,6 +59,7 @@ public class ReviewService {
                 Map<String, Object> updates = ReviewFirestoreMapper.patchMap(request);
 
                 existingDoc.getReference().update(updates).get();
+                invalidarCacheRanking();
 
                 DocumentSnapshot updatedDoc =
                         existingDoc.getReference().get().get();
@@ -83,6 +86,7 @@ public class ReviewService {
             );
 
             docRef.set(data).get();
+            invalidarCacheRanking();
 
             DocumentSnapshot createdDoc = docRef.get().get();
 
@@ -135,7 +139,9 @@ public class ReviewService {
                     "rating", request.getRating(),
                     "description", request.getDescription()
             );
-            return "Avaliação atualizada em: " + futureUpdate.get().getUpdateTime().toString();
+            WriteResult resultado = futureUpdate.get();
+            invalidarCacheRanking();
+            return "Avaliação atualizada em: " + resultado.getUpdateTime().toString();
         }
         return "Erro: Avaliação não encontrada.";
     }
@@ -208,6 +214,7 @@ public class ReviewService {
             }
 
             firestore.collection(COLLECTION_NAME).document(id).delete().get();
+            invalidarCacheRanking();
             return "Avaliação " + id + " removida com sucesso.";
 
         } catch (InterruptedException e) {
@@ -230,7 +237,41 @@ public class ReviewService {
     private record NotaDoJogo(String gameId, double media, int quantidade) {
     }
 
+    /** Por quanto tempo o resultado do ranking é reaproveitado antes de recalcular. */
+    private static final Duration VALIDADE_CACHE_RANKING = Duration.ofMinutes(5);
+
+    private record CacheRanking(Optional<TopRatedGameDTO> melhor, Instant carregadoEm) {
+        boolean valido() {
+            return carregadoEm.plus(VALIDADE_CACHE_RANKING).isAfter(Instant.now());
+        }
+    }
+
+    private volatile CacheRanking cacheRanking;
+
+    private void invalidarCacheRanking() {
+        cacheRanking = null;
+    }
+
+    /**
+     * Jogo mais bem avaliado. O cálculo lê TODAS as reviews, então o resultado fica em
+     * cache por alguns minutos (e é descartado quando uma review é criada, editada ou removida).
+     */
     public Optional<TopRatedGameDTO> getTopRatedGame() throws Exception {
+        CacheRanking atual = cacheRanking;
+        if (atual != null && atual.valido()) {
+            return atual.melhor();
+        }
+        synchronized (this) {
+            atual = cacheRanking;
+            if (atual == null || !atual.valido()) {
+                atual = new CacheRanking(calcularMelhorAvaliado(), Instant.now());
+                cacheRanking = atual;
+            }
+            return atual.melhor();
+        }
+    }
+
+    private Optional<TopRatedGameDTO> calcularMelhorAvaliado() throws Exception {
         QuerySnapshot snapshot = firestore.collection(COLLECTION_NAME).get().get();
 
         Map<String, double[]> acumulado = new HashMap<>();
