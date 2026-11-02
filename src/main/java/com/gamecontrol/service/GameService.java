@@ -229,16 +229,19 @@ public class GameService {
         return resultado;
     }
 
-    /**
-     * Retorna a quantidade de jogos correspondentes ao termo de busca.
-     * Útil para o app mobile exibir "X jogos encontrados" sem precisar
-     * carregar a lista completa no cliente.
-     */
     public long contarJogosPorTitulo(String titulo) {
         return buscarJogosPorTitulo(titulo).size();
     }
 
     public Optional<GameDTO> buscarJogoPorId(String id) {
+        // Adicionei o cache de jogos para ele poder responder da memória sem ficar consultado o firestore
+        CacheJogos emCache = cacheJogos;
+        if (emCache != null && emCache.valido()) {
+            GameDTO jogoEmCache = emCache.porId().get(id);
+            if (jogoEmCache != null) {
+                return Optional.of(jogoEmCache);
+            }
+        }
         return executar(() -> {
             DocumentSnapshot documento = firestore.collection(nomeColecaoJogos).document(id).get().get();
             if (!documento.exists()) {
