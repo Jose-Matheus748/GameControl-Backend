@@ -10,6 +10,7 @@ public class PostCommentDTO {
     private String id;
     private String userId;
     private String username;
+    private String profilePictureUrl;
     private String postId;
     private String content;
     private String createdAt;
