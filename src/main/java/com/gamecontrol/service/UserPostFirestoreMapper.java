@@ -41,6 +41,7 @@ final class UserPostFirestoreMapper {
         dto.setUsername(username);
         dto.setProfilePictureUrl(profilePictureUrl);
         dto.setLikesCount(likedUsers.size());
+        dto.setEdited(Boolean.TRUE.equals(doc.getBoolean("edited")));
 
         return dto;
     }
