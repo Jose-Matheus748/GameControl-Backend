@@ -60,7 +60,7 @@ public class PostCommentService {
             String username = userDoc.getString("username");
             notificarComentario(req, username);
 
-            return PostCommentFirestoreMapper.paraDto(doc, username);
+            return PostCommentFirestoreMapper.paraDto(doc, username, userDoc.getString("profilePictureUrl"));
 
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -149,7 +149,7 @@ public class PostCommentService {
                     .get()
                     .get();
 
-            return PostCommentFirestoreMapper.paraDto(doc, userDoc.getString("username"));
+            return PostCommentFirestoreMapper.paraDto(doc, userDoc.getString("username"), userDoc.getString("profilePictureUrl"));
 
         } catch (ResponseStatusException e) {
             throw e;
@@ -196,7 +196,7 @@ public class PostCommentService {
                     .get()
                     .get();
 
-            lista.add(PostCommentFirestoreMapper.paraDto(doc, userDoc.getString("username")));
+            lista.add(PostCommentFirestoreMapper.paraDto(doc, userDoc.getString("username"), userDoc.getString("profilePictureUrl")));
         }
 
         return lista;

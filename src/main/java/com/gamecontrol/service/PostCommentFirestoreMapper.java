@@ -21,7 +21,7 @@ final class PostCommentFirestoreMapper {
         return dados;
     }
 
-    static PostCommentDTO paraDto(DocumentSnapshot doc, String username) {
+    static PostCommentDTO paraDto(DocumentSnapshot doc, String username, String profilePictureUrl) {
         PostCommentDTO dto = new PostCommentDTO();
         dto.setId(doc.getId());
         dto.setUserId(doc.getString("userId"));
@@ -30,6 +30,7 @@ final class PostCommentFirestoreMapper {
         dto.setCreatedAt(doc.getString("createdAt"));
         dto.setEdited(Boolean.TRUE.equals(doc.getBoolean("edited")));
         dto.setUsername(username);
+        dto.setProfilePictureUrl(profilePictureUrl);
         return dto;
     }
 }
