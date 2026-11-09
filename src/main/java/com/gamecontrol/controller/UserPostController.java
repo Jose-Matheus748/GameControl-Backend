@@ -1,6 +1,7 @@
 package com.gamecontrol.controller;
 
 import com.gamecontrol.config.AuthContext;
+import com.gamecontrol.dto.FeedPaginaDTO;
 import com.gamecontrol.dto.UserPostDTO;
 import com.gamecontrol.dto.request.CreateUserPostRequest;
 import com.gamecontrol.dto.request.UpdateUserPostRequest;
@@ -28,6 +29,15 @@ public class UserPostController {
     @GetMapping
     public List<UserPostDTO> getAll() {
         return service.getAllPosts(AuthContext.uidOuNulo());
+    }
+
+    @GetMapping("/feed")
+    public FeedPaginaDTO<UserPostDTO> feed(
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "true") boolean incluirProprios
+    ) {
+        return service.getFeed(AuthContext.uidObrigatorio(), limit, cursor, incluirProprios);
     }
 
     @GetMapping("/user/{userId}")
