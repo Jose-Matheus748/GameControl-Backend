@@ -18,4 +18,5 @@ public class UserPostDTO {
     private List<String> commentIds;
     private String createdAt;
     private String profilePictureUrl;
+    private boolean edited;
 }

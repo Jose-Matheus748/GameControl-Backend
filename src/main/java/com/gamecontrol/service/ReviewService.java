@@ -159,12 +159,11 @@ public class ReviewService {
             ReviewDTO review = ReviewFirestoreMapper.fromSnapshot(doc);
 
             if (review != null) {
-                var user = userService.buscarUsuarioPorId(review.getUserId());
-
-                if (user != null) {
+                try {
+                    var user = userService.buscarUsuarioPorId(review.getUserId());
                     review.setUserName(user.getUsername());
                     review.setProfilePictureUrl(user.getProfilePictureUrl());
-                } else {
+                } catch (Exception e) {
                     review.setUserName("Usuário desconhecido");
                 }
 
