@@ -1,8 +1,10 @@
 package com.gamecontrol.service;
 
+import com.gamecontrol.dto.FeedPaginaDTO;
 import com.gamecontrol.dto.UserPostDTO;
 import com.gamecontrol.dto.request.CreateUserPostRequest;
 import com.gamecontrol.dto.request.UpdateUserPostRequest;
+import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,9 +72,96 @@ public class UserPostService {
                     .get()
                     .get();
 
-            return montarLista(resultado, viewerId);
+            return montarLista(resultado.getDocuments(), viewerId);
 
         } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Feed paginado: posts de quem {@code viewerId} segue (e, se {@code incluirProprios}, os
+     * dele mesmo), do mais recente para o mais antigo.
+     *
+     * <p>Lê só uma página do Firestore em vez da coleção inteira. Como o {@code whereIn} aceita
+     * poucos ids, os autores são divididos em lotes consultados em paralelo e os resultados
+     * são mesclados. Exige o índice composto {@code posts(userId, createdAt desc)}, declarado
+     * em {@code firestore.indexes.json}.
+     *
+     * @param cursor valor devolvido em {@code proximoCursor} pela página anterior (ou nulo)
+     * @throws ResponseStatusException 400 se o cursor for inválido
+     */
+    public FeedPaginaDTO<UserPostDTO> getFeed(String viewerId, int limite, String cursor, boolean incluirProprios) {
+        if (viewerId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Autenticação necessária.");
+        }
+
+        FeedPaginacao.Cursor inicio;
+        try {
+            inicio = FeedPaginacao.decodificarCursor(cursor);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cursor inválido.");
+        }
+        int tamanho = FeedPaginacao.normalizarLimite(limite);
+
+        try {
+            DocumentSnapshot viewer = firestore.collection(usersCollection)
+                    .document(viewerId)
+                    .get()
+                    .get();
+
+            Set<String> autores = new LinkedHashSet<>(UserFirestoreMapper.lerListaIds(viewer, "following"));
+            if (incluirProprios) {
+                autores.add(viewerId);
+            } else {
+                autores.remove(viewerId);
+            }
+            if (autores.isEmpty()) {
+                return new FeedPaginaDTO<>(List.of(), null, false);
+            }
+
+            // Dispara todas as consultas antes de esperar qualquer uma: rodam em paralelo.
+            List<ApiFuture<QuerySnapshot>> consultas = new ArrayList<>();
+            for (List<String> lote : FeedPaginacao.dividirEmLotes(autores, FeedPaginacao.MAX_IDS_POR_CONSULTA)) {
+                Query consulta = firestore.collection(postsCollection)
+                        .whereIn("userId", lote)
+                        .orderBy("createdAt", Query.Direction.DESCENDING)
+                        .orderBy(FieldPath.documentId(), Query.Direction.DESCENDING);
+                if (inicio != null) {
+                    consulta = consulta.startAfter(inicio.createdAt(), inicio.id());
+                }
+                // Um a mais que a página: se vier, sabemos que há próxima sem outra consulta.
+                consultas.add(consulta.limit(tamanho + 1).get());
+            }
+
+            List<List<QueryDocumentSnapshot>> resultados = new ArrayList<>();
+            for (ApiFuture<QuerySnapshot> consulta : consultas) {
+                resultados.add(consulta.get().getDocuments());
+            }
+
+            List<QueryDocumentSnapshot> maisRecentes = FeedPaginacao.mesclarMaisRecentes(
+                    resultados,
+                    doc -> doc.getString("createdAt"),
+                    DocumentSnapshot::getId,
+                    tamanho + 1
+            );
+            boolean temMais = maisRecentes.size() > tamanho;
+            List<QueryDocumentSnapshot> pagina = temMais ? maisRecentes.subList(0, tamanho) : maisRecentes;
+
+            String proximoCursor = null;
+            if (temMais) {
+                QueryDocumentSnapshot ultimo = pagina.get(pagina.size() - 1);
+                proximoCursor = FeedPaginacao.codificarCursor(ultimo.getString("createdAt"), ultimo.getId());
+            }
+
+            return new FeedPaginaDTO<>(montarLista(pagina, viewerId), proximoCursor, temMais);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Operação interrompida.", e);
+        } catch (Exception e) {
+            log.error("Falha ao montar o feed de {} (o índice composto posts[userId, createdAt] "
+                    + "existe? ver firestore.indexes.json): {}", viewerId, e.getMessage());
             throw new IllegalStateException(e);
         }
     }
@@ -86,7 +175,7 @@ public class UserPostService {
                     .get()
                     .get();
 
-            return montarLista(resultado, viewerId);
+            return montarLista(resultado.getDocuments(), viewerId);
 
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -173,16 +262,17 @@ public class UserPostService {
         }
     }
 
-    private List<UserPostDTO> montarLista(QuerySnapshot resultado, String viewerId) throws Exception {
-        List<UserPostDTO> lista = new ArrayList<>();
+    private List<UserPostDTO> montarLista(List<? extends DocumentSnapshot> posts, String viewerId) throws Exception {
+        Map<String, DocumentSnapshot> autores = buscarAutores(posts);
+        List<UserPostDTO> lista = new ArrayList<>(posts.size());
 
-        for (DocumentSnapshot doc : resultado.getDocuments()) {
+        for (DocumentSnapshot doc : posts) {
             String userId = doc.getString("userId");
+            if (userId == null || userId.isBlank()) {
+                continue;
+            }
 
-            DocumentSnapshot userDoc = firestore.collection(usersCollection)
-                    .document(userId)
-                    .get()
-                    .get();
+            DocumentSnapshot userDoc = autores.get(userId);
 
             if (!UserFirestoreMapper.podeVerConteudo(userDoc, viewerId)) {
                 continue;
@@ -190,12 +280,37 @@ public class UserPostService {
 
             lista.add(UserPostFirestoreMapper.paraDto(
                     doc,
-                    userDoc.getString("username"),
-                    userDoc.getString("profilePictureUrl")
+                    userDoc != null ? userDoc.getString("username") : null,
+                    userDoc != null ? userDoc.getString("profilePictureUrl") : null
             ));
         }
 
         return lista;
+    }
+
+    /** Lê, em uma única chamada, o documento de cada autor distinto dos posts. */
+    private Map<String, DocumentSnapshot> buscarAutores(List<? extends DocumentSnapshot> posts) throws Exception {
+        Set<String> ids = new LinkedHashSet<>();
+        for (DocumentSnapshot post : posts) {
+            String userId = post.getString("userId");
+            if (userId != null && !userId.isBlank()) {
+                ids.add(userId);
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+
+        DocumentReference[] referencias = ids.stream()
+                .map(id -> firestore.collection(usersCollection).document(id))
+                .toArray(DocumentReference[]::new);
+
+        // getAll devolve um snapshot por referência (exists() == false se o usuário não existe).
+        Map<String, DocumentSnapshot> porId = new HashMap<>();
+        for (DocumentSnapshot autor : firestore.getAll(referencias).get()) {
+            porId.put(autor.getId(), autor);
+        }
+        return porId;
     }
 
     /** {@code userId} deve ser o uid do token (nunca um valor enviado pelo cliente). */
